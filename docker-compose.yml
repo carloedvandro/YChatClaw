@@ -1,7 +1,9 @@
 version: '3.8'
 
 services:
-  # Banco de dados
+  # -----------------------------
+  # PostgreSQL
+  # -----------------------------
   postgres:
     image: postgres:15-alpine
     container_name: ychatclaw-postgres
@@ -22,7 +24,9 @@ services:
     networks:
       - ychatclaw-network
 
-  # Redis para filas e cache
+  # -----------------------------
+  # Redis
+  # -----------------------------
   redis:
     image: redis:7-alpine
     container_name: ychatclaw-redis
@@ -40,7 +44,9 @@ services:
     networks:
       - ychatclaw-network
 
-  # API Server (REST API)
+  # -----------------------------
+  # API Server
+  # -----------------------------
   api-server:
     build:
       context: .
@@ -57,6 +63,8 @@ services:
       - OLLAMA_URL=${OLLAMA_URL}
     ports:
       - "${API_PORT:-3000}:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,7 +75,9 @@ services:
     networks:
       - ychatclaw-network
 
-  # WebSocket Server (conexões com dispositivos)
+  # -----------------------------
+  # WebSocket Server
+  # -----------------------------
   websocket-server:
     build:
       context: .
@@ -90,7 +100,9 @@ services:
     networks:
       - ychatclaw-network
 
-  # AI Service (integração Ollama)
+  # -----------------------------
+  # AI Service (Ollama)
+  # -----------------------------
   ai-service:
     build:
       context: .
@@ -117,7 +129,9 @@ services:
     networks:
       - ychatclaw-network
 
+  # -----------------------------
   # Worker (BullMQ)
+  # -----------------------------
   worker:
     build:
       context: .
@@ -142,7 +156,9 @@ services:
     networks:
       - ychatclaw-network
 
-  # WhatsApp Gateway (Baileys)
+  # -----------------------------
+  # WhatsApp Gateway
+  # -----------------------------
   whatsapp-gateway:
     build:
       context: .
@@ -167,7 +183,9 @@ services:
     networks:
       - ychatclaw-network
 
+  # -----------------------------
   # Telegram Gateway
+  # -----------------------------
   telegram-gateway:
     build:
       context: .
@@ -187,7 +205,9 @@ services:
     networks:
       - ychatclaw-network
 
+  # -----------------------------
   # Discord Gateway
+  # -----------------------------
   discord-gateway:
     build:
       context: .
@@ -207,10 +227,16 @@ services:
     networks:
       - ychatclaw-network
 
+# -----------------------------
+# Volumes
+# -----------------------------
 volumes:
   postgres_data:
   redis_data:
 
+# -----------------------------
+# Network
+# -----------------------------
 networks:
   ychatclaw-network:
     driver: bridge
