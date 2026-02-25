@@ -1,0 +1,14 @@
+FROM node:20-alpine AS base
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY services/discord-gateway ./services/discord-gateway
+COPY shared ./shared
+
+WORKDIR /app/services/discord-gateway
+RUN npm install
+
+CMD ["npm", "start"]

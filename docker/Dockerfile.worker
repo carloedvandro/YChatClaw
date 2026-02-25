@@ -1,0 +1,14 @@
+FROM node:20-alpine AS base
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY services/worker ./services/worker
+COPY shared ./shared
+
+WORKDIR /app/services/worker
+RUN npm install
+
+CMD ["npm", "start"]

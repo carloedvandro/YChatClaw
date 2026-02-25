@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Device {
+  id            String   @id @default(uuid())
+  uuid          String   @unique
+  name          String?
+  status        DeviceStatus @default(OFFLINE)
+  lastHeartbeat DateTime?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  groupId String?
+  group   DeviceGroup? @relation(fields: [groupId], references: [id])
+
+  commands Command[]
+
+  @@index([status])
+  @@index([groupId])
+  @@index([uuid])
+}
+
+model DeviceGroup {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  devices Device[]
+
+  @@index([name])
+}
+
+model User {
+  id         String   @id @default(uuid())
+  channelType String
+  externalId String
+  name       String?
+  preferences Json    @default("{}")
+  rateLimits  Json    @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sessions  Session[]
+  commands  Command[]
+  media     Media[]
+  apiKeys   ApiKey[]
+  campaigns Campaign[]
+
+  @@unique([channelType, externalId])
+  @@index([externalId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  channelType  String
+  channelId    String
+  history      Json     @default("[]")
+  context      Json     @default("{}")
+  lastActivity DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([channelType, channelId])
+  @@index([lastActivity])
+}
+
+model Command {
+  id            String       @id @default(uuid())
+  type          CommandType
+  targetType    TargetType?
+  targetDeviceId String?
+  targetGroupId  String?
+  commandName   String
+  params        Json         @default("{}")
+  status        CommandStatus @default(PENDING)
+  result        Json?
+  error         String?
+  scheduledAt   DateTime?
+  executedAt    DateTime?
+  retryCount    Int          @default(0)
+  createdAt     DateTime     @default(now())
+  createdBy     String
+
+  device  Device? @relation(fields: [targetDeviceId], references: [id])
+  user    User    @relation(fields: [createdBy], references: [id])
+
+  @@index([status])
+  @@index([targetDeviceId])
+  @@index([targetGroupId])
+  @@index([scheduledAt])
+  @@index([createdBy])
+}
+
+model Media {
+  id         String   @id @default(uuid())
+  userId     String
+  filename   String
+  path       String
+  type       MediaType
+  size       Int
+  metadata   Json     @default("{}")
+  campaignId String?
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign Campaign? @relation(fields: [campaignId], references: [id])
+
+  @@index([userId])
+  @@index([type])
+  @@index([campaignId])
+}
+
+model ApiKey {
+  id          String   @id @default(uuid())
+  userId      String
+  provider    String
+  keyEncrypted String
+  limits      Json     @default("{}")
+  usageStats  Json     @default("{}")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([provider])
+}
+
+model Campaign {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  scheduleConfig Json     @default("{}")
+  targetGroupId  String?
+  isActive       Boolean  @default(true)
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user    User    @relation(fields: [createdBy], references: [id])
+  media   Media[]
+
+  @@index([createdBy])
+  @@index([isActive])
+}
+
+model ScheduledTask {
+  id          String   @id @default(uuid())
+  taskType    String
+  config      Json     @default("{}")
+  cronExpression String?
+  nextRunAt   DateTime?
+  lastRunAt   DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, nextRunAt])
+  @@index([taskType])
+}
+
+enum DeviceStatus {
+  ONLINE
+  OFFLINE
+  BUSY
+  ERROR
+}
+
+enum CommandType {
+  SINGLE
+  BROADCAST
+  SCHEDULED
+}
+
+enum TargetType {
+  DEVICE
+  GROUP
+  ALL
+}
+
+enum CommandStatus {
+  PENDING
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+}

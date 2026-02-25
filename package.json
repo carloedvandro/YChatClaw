@@ -1,0 +1,36 @@
+{
+  "name": "ychatclaw",
+  "version": "1.0.0",
+  "description": "Plataforma de automação com IA inspirada no OpenClaw para controle de dispositivos Android",
+  "private": true,
+  "workspaces": [
+    "services/*",
+    "shared/*"
+  ],
+  "scripts": {
+    "dev": "docker-compose -f docker-compose.dev.yml up",
+    "start": "docker-compose up -d",
+    "stop": "docker-compose down",
+    "build": "docker-compose build",
+    "logs": "docker-compose logs -f",
+    "db:migrate": "cd shared/prisma && npx prisma migrate dev",
+    "db:generate": "cd shared/prisma && npx prisma generate",
+    "db:studio": "cd shared/prisma && npx prisma studio",
+    "setup": "bash scripts/setup-server.sh",
+    "deploy": "bash scripts/deploy.sh"
+  },
+  "keywords": [
+    "automation",
+    "android",
+    "ai",
+    "whatsapp",
+    "telegram",
+    "discord",
+    "ollama"
+  ],
+  "author": "Yrwen Technology",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

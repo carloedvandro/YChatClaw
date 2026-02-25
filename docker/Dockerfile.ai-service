@@ -1,0 +1,16 @@
+FROM node:20-alpine AS base
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY services/ai-service ./services/ai-service
+COPY shared ./shared
+
+WORKDIR /app/services/ai-service
+RUN npm install
+
+EXPOSE 3002
+
+CMD ["npm", "start"]
