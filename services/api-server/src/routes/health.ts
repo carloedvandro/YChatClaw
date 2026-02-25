@@ -54,11 +54,11 @@ router.get('/stats', async (req, res) => {
     const queueCount = await redis.get('bull:commands:count') || '0';
 
     res.json({
-      devices: deviceStats.reduce((acc, curr) => {
+      devices: deviceStats.reduce((acc: Record<string, number>, curr: { status: string; _count: { id: number } }) => {
         acc[curr.status] = curr._count.id;
         return acc;
       }, {} as Record<string, number>),
-      commands: commandStats.reduce((acc, curr) => {
+      commands: commandStats.reduce((acc: Record<string, number>, curr: { status: string; _count: { id: number } }) => {
         acc[curr.status] = curr._count.id;
         return acc;
       }, {} as Record<string, number>),

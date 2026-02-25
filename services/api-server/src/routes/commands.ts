@@ -6,8 +6,12 @@ import { z } from 'zod';
 const router = Router();
 const prisma = new PrismaClient();
 
+const redisUrl = new URL(process.env.REDIS_URL || 'redis://redis:6379');
 const commandQueue = new Queue('commands', {
-  connection: { url: process.env.REDIS_URL },
+  connection: {
+    host: redisUrl.hostname,
+    port: parseInt(redisUrl.port || '6379'),
+  },
 });
 
 const createCommandSchema = z.object({
