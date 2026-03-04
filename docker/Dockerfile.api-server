@@ -3,11 +3,13 @@ FROM node:20-alpine
 WORKDIR /app/services/api-server
 
 COPY services/api-server/package*.json ./
-RUN apk add --no-cache git && npm install && npx prisma generate
+RUN apk add --no-cache git && npm install
 
 COPY services/api-server/tsconfig.json ./
 COPY services/api-server/src ./src
 COPY shared /app/shared
+
+RUN npx prisma generate
 
 RUN npm run build
 

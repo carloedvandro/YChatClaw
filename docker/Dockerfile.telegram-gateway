@@ -3,11 +3,13 @@ FROM node:20-alpine
 WORKDIR /app/services/telegram-gateway
 
 COPY services/telegram-gateway/package*.json ./
-RUN apk add --no-cache git && npm install && npx prisma generate
+RUN apk add --no-cache git && npm install
 
 COPY services/telegram-gateway/tsconfig.json ./
 COPY services/telegram-gateway/src ./src
 COPY shared /app/shared
+
+RUN npx prisma generate
 
 RUN npm run build
 
