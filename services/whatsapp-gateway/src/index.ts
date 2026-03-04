@@ -1,14 +1,14 @@
 import express from 'express';
 import { makeWASocket, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import qrcode from 'qrcode-terminal';
-import { createClient } from 'ioredis';
+import Redis from 'ioredis';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3003;
-const redis = createClient({ url: process.env.REDIS_URL });
+const redis = new Redis(process.env.REDIS_URL);
 
 app.use(express.json());
 
