@@ -99,7 +99,7 @@ async function handleRegister(wsId: string, ws: WebSocket, message: any) {
           status: 'ONLINE',
           lastHeartbeat: new Date(),
           name: name || device.name,
-          metadata: metadata ? { ...device.metadata, ...metadata } : device.metadata,
+          metadata: metadata ? { ...(device.metadata || {}), ...metadata } : device.metadata,
         },
       });
       console.log(`Dispositivo reconectado: ${uuid}`);
