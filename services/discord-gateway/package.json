@@ -1,23 +1,23 @@
 {
-  " name\: \@ychatclaw/discord-gateway\,
- \version\: \1.0.0\,
- \description\: \Gateway Discord usando discord.js\,
- \main\: \dist/index.js\,
- \scripts\: {
- \build\: \tsc\,
- \start\: \node dist/index.js\,
- \dev\: \ts-node src/index.ts\
- },
- \dependencies\: {
- \discord.js\: \^14.14.1\,
- \@prisma/client\: \^5.7.0\,
- \prisma\: \^5.7.0\,
- \ioredis\: \^5.3.2\,
- \dotenv\: \^16.3.1\
- },
- \devDependencies\: {
- \@types/node\: \^20.10.4\,
- \typescript\: \^5.3.3\,
- \ts-node\: \^10.9.2\
- }
+  "name": "@ychatclaw/discord-gateway",
+  "version": "1.0.0",
+  "description": "Gateway Discord usando discord.js",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "discord.js": "^4.15.3",
+    "@prisma/client": "^5.7.0",
+    "prisma": "^5.7.0",
+    "ioredis": "^5.3.2",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.4",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2"
+  }
 }
