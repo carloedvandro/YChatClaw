@@ -9,7 +9,7 @@ COPY services/ai-service/tsconfig.json ./
 COPY services/ai-service/src ./src
 COPY shared /app/shared
 
-RUN npx prisma generate
+RUN npx prisma generate --schema=/app/shared/prisma/schema.prisma
 
 RUN npm run build
 
