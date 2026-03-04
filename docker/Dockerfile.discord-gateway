@@ -3,7 +3,7 @@ FROM node:20-alpine
 WORKDIR /app/services/discord-gateway
 
 COPY services/discord-gateway/package*.json ./
-RUN npm install
+RUN apk add --no-cache git && npm install
 
 COPY services/discord-gateway/tsconfig.json ./
 COPY services/discord-gateway/src ./src

@@ -3,7 +3,7 @@ FROM node:20-alpine
 WORKDIR /app/services/whatsapp-gateway
 
 COPY services/whatsapp-gateway/package*.json ./
-RUN npm install
+RUN apk add --no-cache git && npm install
 
 COPY services/whatsapp-gateway/tsconfig.json ./
 COPY services/whatsapp-gateway/src ./src
