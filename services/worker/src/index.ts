@@ -157,14 +157,14 @@ async function broadcastCommand(command: any) {
       },
       select: { id: true },
     });
-    deviceIds = devices.map(d => d.id);
+    deviceIds = devices.map((d: { id: string }) => d.id);
   } else if (command.targetType === 'ALL') {
     // Todos os dispositivos online
     const devices = await prisma.device.findMany({
       where: { status: 'ONLINE' },
       select: { id: true },
     });
-    deviceIds = devices.map(d => d.id);
+    deviceIds = devices.map((d: { id: string }) => d.id);
   }
 
   console.log(`Broadcast para ${deviceIds.length} dispositivos`);
