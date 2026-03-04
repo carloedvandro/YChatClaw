@@ -10,7 +10,7 @@ COPY services/discord-gateway/src ./src
 COPY shared /app/shared
 
 WORKDIR /app/services/discord-gateway
-RUN npx prisma generate --schema=../shared/prisma/schema.prisma
+RUN npx prisma generate --schema=/app/shared/prisma/schema.prisma
 
 RUN npm run build
 
