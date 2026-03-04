@@ -64,7 +64,7 @@ export class OllamaClient {
       throw new Error(`Erro na API Ollama: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { response: string };
     return data.response;
   }
 
@@ -107,7 +107,7 @@ export class OllamaClient {
       throw new Error(`Erro na API Ollama: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { response: string };
     return data.response;
   }
 
