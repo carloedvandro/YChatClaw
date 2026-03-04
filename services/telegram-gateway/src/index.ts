@@ -58,7 +58,7 @@ bot.on('text', async (ctx) => {
       }),
     });
 
-    const result = await response.json();
+    const result = await response.json() as { response?: string; error?: string };
 
     // Responder ao usuário
     if (result.response) {
