@@ -9,8 +9,9 @@ COPY services/worker/tsconfig.json ./
 COPY services/worker/src ./src
 COPY shared /app/shared
 
+WORKDIR /app
+RUN npx prisma generate --schema=./shared/prisma/schema.prisma
 WORKDIR /app/services/worker
-RUN npx prisma generate --schema=/app/shared/prisma/schema.prisma
 
 RUN npm run build
 

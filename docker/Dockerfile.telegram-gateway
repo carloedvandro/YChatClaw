@@ -9,8 +9,9 @@ COPY services/telegram-gateway/tsconfig.json ./
 COPY services/telegram-gateway/src ./src
 COPY shared /app/shared
 
+WORKDIR /app
+RUN npx prisma generate --schema=./shared/prisma/schema.prisma
 WORKDIR /app/services/telegram-gateway
-RUN npx prisma generate --schema=/app/shared/prisma/schema.prisma
 
 RUN npm run build
 
