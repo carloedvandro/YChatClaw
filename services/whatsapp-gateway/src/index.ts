@@ -21,12 +21,20 @@ async function startWhatsApp() {
   });
 
   sock.ev.on('connection.update', (update) => {
-    const { qr, connection } = update;
+    const { qr, connection, lastDisconnect } = update;
+    console.log('Connection update:', { connection, hasQR: !!qr });
+    
     if (qr) {
+      console.log('📱 QR Code gerado! Escaneie com WhatsApp:');
       qrcode.generate(qr, { small: true });
     }
+    
     if (connection === 'open') {
-      console.log('✅ WhatsApp conectado');
+      console.log('✅ WhatsApp conectado com sucesso!');
+    }
+    
+    if (connection === 'close') {
+      console.log('❌ Conexão fechada:', lastDisconnect?.error);
     }
   });
 
