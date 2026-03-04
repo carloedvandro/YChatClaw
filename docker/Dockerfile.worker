@@ -3,7 +3,7 @@ FROM node:20-alpine
 WORKDIR /app/services/worker
 
 COPY services/worker/package*.json ./
-RUN apk add --no-cache git && npm install
+RUN apk add --no-cache git && npm install && npx prisma generate
 
 COPY services/worker/tsconfig.json ./
 COPY services/worker/src ./src

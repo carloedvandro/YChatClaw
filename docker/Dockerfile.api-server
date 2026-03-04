@@ -3,7 +3,7 @@ FROM node:20-alpine
 WORKDIR /app/services/api-server
 
 COPY services/api-server/package*.json ./
-RUN apk add --no-cache git && npm install
+RUN apk add --no-cache git && npm install && npx prisma generate
 
 COPY services/api-server/tsconfig.json ./
 COPY services/api-server/src ./src
