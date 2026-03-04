@@ -1,5 +1,5 @@
 import express from 'express';
-import { makeWASocket, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import { Client, LocalAuth } from 'whatsapp-web.js';
 import qrcode from 'qrcode-terminal';
 import Redis from 'ioredis';
 import dotenv from 'dotenv';
@@ -13,43 +13,40 @@ const redis = new Redis(process.env.REDIS_URL);
 app.use(express.json());
 
 async function startWhatsApp() {
-  const { state, saveCreds } = await useMultiFileAuthState(process.env.WHATSAPP_SESSION_PATH || './sessions');
-  
-  const sock = makeWASocket({
-    auth: state,
-    printQRInTerminal: true,
-  });
-
-  sock.ev.on('connection.update', (update) => {
-    const { qr, connection, lastDisconnect } = update;
-    console.log('Connection update:', { connection, hasQR: !!qr });
-    
-    if (qr) {
-      console.log('📱 QR Code gerado! Escaneie com WhatsApp:');
-      qrcode.generate(qr, { small: true });
-    }
-    
-    if (connection === 'open') {
-      console.log('✅ WhatsApp conectado com sucesso!');
-    }
-    
-    if (connection === 'close') {
-      console.log('❌ Conexão fechada:', lastDisconnect?.error);
+  const client = new Client({
+    authStrategy: new LocalAuth({
+      dataPath: process.env.WHATSAPP_SESSION_PATH || './sessions'
+    }),
+    puppeteer: {
+      headless: true,
+      args: ['--no-sandbox']
     }
   });
 
-  sock.ev.on('messages.upsert', async ({ messages }) => {
-    const msg = messages[0];
-    if (!msg.message || msg.key.fromMe) return;
+  client.on('qr', (qr) => {
+    console.log('📱 QR Code gerado! Escaneie com WhatsApp:');
+    qrcode.generate(qr, { small: true });
+  });
 
-    const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
+  client.on('ready', () => {
+    console.log('✅ WhatsApp conectado com sucesso!');
+  });
+
+  client.on('disconnected', (reason) => {
+    console.log('❌ WhatsApp desconectado:', reason);
+  });
+
+  client.on('message', async (msg) => {
+    if (msg.fromMe) return;
+
+    const text = msg.body;
     if (!text) return;
 
     // Enviar para AI Service
     try {
       await redis.lpush('messages:queue', JSON.stringify({
         type: 'whatsapp',
-        from: msg.key.remoteJid,
+        from: msg.from,
         text,
         timestamp: new Date().toISOString(),
       }));
@@ -57,6 +54,8 @@ async function startWhatsApp() {
       console.error('Erro ao enviar mensagem para fila:', err);
     }
   });
+
+  await client.initialize();
 }
 
 app.get('/health', (req, res) => {
