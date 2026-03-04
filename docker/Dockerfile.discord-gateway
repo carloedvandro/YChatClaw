@@ -9,7 +9,9 @@ COPY services/discord-gateway/tsconfig.json ./
 COPY services/discord-gateway/src ./src
 COPY shared /app/shared
 
-RUN npx prisma generate --schema=/app/shared/prisma/schema.prisma --output-dir=./node_modules/.prisma/client
+WORKDIR /app
+RUN npx prisma generate --schema=./shared/prisma/schema.prisma
+WORKDIR /app/services/discord-gateway
 
 RUN npm run build
 
