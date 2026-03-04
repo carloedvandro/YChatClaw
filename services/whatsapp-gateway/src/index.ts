@@ -18,8 +18,9 @@ async function startWhatsApp() {
       dataPath: process.env.WHATSAPP_SESSION_PATH || './sessions'
     }),
     puppeteer: {
-      headless: true,
-      args: ['--no-sandbox']
+      headless: 'new',
+      executablePath: '/usr/bin/chromium-browser',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     }
   });
 
