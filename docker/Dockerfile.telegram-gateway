@@ -1,14 +1,14 @@
-FROM node:20-alpine AS base
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm install
-
-COPY services/telegram-gateway ./services/telegram-gateway
-COPY shared ./shared
+FROM node:20-alpine
 
 WORKDIR /app/services/telegram-gateway
+
+COPY services/telegram-gateway/package*.json ./
 RUN npm install
 
-CMD ["npm", "start"]
+COPY services/telegram-gateway/tsconfig.json ./
+COPY services/telegram-gateway/src ./src
+COPY shared /app/shared
+
+RUN npm run build
+
+CMD ["node", "dist/index.js"]

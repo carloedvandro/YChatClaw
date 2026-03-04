@@ -1,16 +1,16 @@
-FROM node:20-alpine AS base
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm install
-
-COPY services/whatsapp-gateway ./services/whatsapp-gateway
-COPY shared ./shared
+FROM node:20-alpine
 
 WORKDIR /app/services/whatsapp-gateway
+
+COPY services/whatsapp-gateway/package*.json ./
 RUN npm install
+
+COPY services/whatsapp-gateway/tsconfig.json ./
+COPY services/whatsapp-gateway/src ./src
+COPY shared /app/shared
+
+RUN npm run build
 
 EXPOSE 3003
 
-CMD ["npm", "start"]
+CMD ["node", "dist/index.js"]
