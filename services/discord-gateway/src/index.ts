@@ -72,7 +72,7 @@ client.on(Events.MessageCreate, async (message) => {
       }),
     });
 
-    const result = await response.json();
+    const result = await response.json() as { response?: string; error?: string };
 
     // Responder no Discord
     if (result.response) {
