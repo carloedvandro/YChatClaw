@@ -11,6 +11,7 @@ COPY shared /app/shared
 
 WORKDIR /app
 RUN npx prisma generate --schema=./shared/prisma/schema.prisma
+RUN cp -r /app/node_modules/.prisma /app/services/ai-service/node_modules/
 WORKDIR /app/services/ai-service
 
 RUN npm run build
