@@ -1,12 +1,9 @@
-import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import dotenv from 'dotenv';
 import { Telegraf } from 'telegraf';
 
 dotenv.config();
-
-const app = express();
 const prisma = new PrismaClient();
 const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 
