@@ -12,6 +12,7 @@ import { mediaRoutes } from './routes/media';
 import { campaignRoutes } from './routes/campaigns';
 import { commandRoutes } from './routes/commands';
 import { healthRoutes } from './routes/health';
+import { router as dashboardRoutes } from './routes/dashboard';
 
 dotenv.config();
 
@@ -41,6 +42,7 @@ app.use('/api/media', mediaRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/commands', commandRoutes);
 app.use('/health', healthRoutes);
+app.use('/dashboard', dashboardRoutes);
 
 // Rota padrão
 app.get('/', (req, res) => {
