@@ -94,6 +94,20 @@ services:
     networks:
       - ychatclaw-network
 
+  # -----------------------------
+  # Ollama LLM Server
+  # -----------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ychatclaw-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11435:11434"
+    networks:
+      - ychatclaw-network
+
   ai-service:
     build:
       context: .
@@ -105,11 +119,9 @@ services:
       PORT: 3002
       REDIS_URL: ${REDIS_URL}
       DATABASE_URL: ${DATABASE_URL}
-      OLLAMA_URL: ${OLLAMA_URL}
+      OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3:8b}
       OLLAMA_VISION_MODEL: ${OLLAMA_VISION_MODEL:-llava:13b}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     ports:
       - "3002:3002"
     depends_on:
@@ -117,6 +129,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      ollama:
+        condition: service_started
     networks:
       - ychatclaw-network
 
@@ -209,6 +223,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  ollama_data:
 
 networks:
   ychatclaw-network:

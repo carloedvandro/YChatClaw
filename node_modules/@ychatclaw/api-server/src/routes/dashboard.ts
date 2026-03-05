@@ -107,7 +107,7 @@ router.get('/ai-status', async (req, res) => {
   try {
     const [healthRes, modelsRes] = await Promise.allSettled([
       fetch('http://ai-service:3002/health'),
-      fetch((process.env.OLLAMA_URL || 'http://host.docker.internal:11434') + '/api/tags'),
+      fetch((process.env.OLLAMA_URL || 'http://ollama:11434') + '/api/tags'),
     ]);
 
     const health = healthRes.status === 'fulfilled' ? await healthRes.value.json() : { status: 'unhealthy' };
