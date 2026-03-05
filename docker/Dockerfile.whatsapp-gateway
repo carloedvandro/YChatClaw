@@ -3,7 +3,7 @@ FROM node:20-alpine
 WORKDIR /app/services/whatsapp-gateway
 
 COPY services/whatsapp-gateway/package*.json ./
-RUN apk add --no-cache git chromium nss freetype freetype-dev harfbuzz ca-certificates ttf-freefont gtk+3.0 libxss1 gconf-service xdg-utils && npm install
+RUN apk add --no-cache git chromium nss freetype freetype-dev harfbuzz ca-certificates ttf-freefont gtk+3.0 libxss gconf xdg-utils && npm install
 
 COPY services/whatsapp-gateway/tsconfig.json ./
 COPY services/whatsapp-gateway/src ./src
