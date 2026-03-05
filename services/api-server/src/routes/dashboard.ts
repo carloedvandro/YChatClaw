@@ -197,7 +197,7 @@ router.get('/whatsapp-qr', async (req, res) => {
     res.json({ 
       qr: null,
       message: 'Erro ao buscar QR Code',
-      error: error.message,
+      error: (error as Error).message,
       status: 'error'
     });
   }
@@ -218,7 +218,7 @@ router.get('/whatsapp-status', async (req, res) => {
     res.json({
       status: 'disconnected',
       message: 'WhatsApp Gateway não está respondendo',
-      error: error.message
+      error: (error as Error).message
     });
   }
 });
