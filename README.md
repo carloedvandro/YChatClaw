@@ -13,8 +13,9 @@ YChatClaw é um sistema de automação distribuído que permite controlar dispos
 - **api-server**: REST API para gerenciamento de dispositivos, grupos, mídia e usuários
 - **websocket-server**: Conexões WebSocket com dispositivos Android (nodes)
 - **worker**: Processamento de filas BullMQ para execução de comandos
-- **ai-service**: Integração com Ollama para interpretação de comandos
-- **whatsapp-gateway**: Integração WhatsApp via Baileys
+- **ai-service**: Integração com Ollama para interpretação de comandos + 18 tools de automação web
+- **web-automation**: Automação web via Puppeteer (headless Chrome) - navegar, clicar, preencher, screenshot
+- **whatsapp-gateway**: Integração WhatsApp via whatsapp-web.js
 - **telegram-gateway**: Integração Telegram via telegraf
 - **discord-gateway**: Integração Discord via discord.js
 - **redis**: Fila de tarefas e cache
@@ -23,7 +24,13 @@ YChatClaw é um sistema de automação distribuído que permite controlar dispos
 ### Fluxo de Comando
 
 ```
-Canal (WhatsApp/Telegram/Discord) → Gateway → AI Service (Ollama) → Skill → Worker → WebSocket → Dispositivo
+Canal (WhatsApp/Telegram/Discord) → Gateway → AI Service (Ollama) → Tool Execution → Resultado
+                                                                          ↓
+                                                              ┌─────────────────────┐
+                                                              │ Web Automation       │ → Puppeteer (navegar, clicar, screenshot)
+                                                              │ Device Commands      │ → Worker → WebSocket → Dispositivo Android
+                                                              │ Direct Response      │ → Resposta natural em PT-BR
+                                                              └─────────────────────┘
 ```
 
 ## Requisitos
@@ -115,7 +122,7 @@ ollama pull llava:13b
 3. O dispositivo receberá um UUID único
 4. Gerencie os dispositivos via API ou comandos de chat
 
-### Comandos Suportados
+### Comandos de Dispositivo
 
 - `open_app` - Abrir aplicativo
 - `open_url` - Abrir URL no navegador
@@ -123,20 +130,55 @@ ollama pull llava:13b
 - `play_video` - Reproduzir vídeo
 - `display_image` - Exibir imagem
 - `slideshow` - Apresentação de slides
-- `input_text` - Inserir texto
-- `capture_screenshot` - Capturar tela
+- `get_device_info` - Informações do dispositivo
+
+### Comandos de Automação Web (Puppeteer)
+
+- `web_open_browser` - Abrir navegador e navegar para URL
+- `web_navigate` - Navegar para outra página
+- `web_click` / `web_click_text` - Clicar em elementos por seletor CSS ou texto
+- `web_type` - Digitar texto em campos
+- `web_login` - Login automático (usuário + senha)
+- `web_fill_form` - Preencher formulários completos
+- `web_screenshot` - Capturar screenshot da página
+- `web_get_content` - Analisar conteúdo (texto, links, botões, inputs)
+- `web_scroll` - Rolar página
+- `web_select` / `web_checkbox` - Selecionar opções e checkboxes
+- `web_execute_js` - Executar JavaScript customizado
+- `web_hover` / `web_press_key` - Hover e teclas
+- `web_dropdown_options` - Listar opções de dropdown
+- `web_close_browser` - Fechar sessão
+
+### Comandos de Automação Web no Android (WebView)
+
+- `web_navigate` - Navegar no WebView
+- `web_click` - Clicar via JavaScript injection
+- `web_type` - Digitar via JavaScript injection
+- `web_screenshot` - Capturar WebView
+- `web_get_content` - Extrair conteúdo da página
+- `web_login` - Login automático no WebView
+
+## Dashboard
+
+Acesse o dashboard em `http://SEU_SERVIDOR:3000/dashboard` para:
+
+- Monitorar status de todos os serviços
+- Gerar e escanear QR Code do WhatsApp
+- Controlar automação web (criar sessões, navegar, clicar, screenshot)
+- Visualizar dispositivos conectados
+- Enviar mensagens e ver logs
+
+**Credenciais padrão**: `admin` / `ychatclaw123`
 
 ## Configuração WhatsApp
 
-O gateway WhatsApp usa Baileys. Na primeira execução:
+O gateway WhatsApp usa whatsapp-web.js. Na primeira execução:
 
-1. Um QR code será exibido nos logs
+1. Acesse o dashboard e clique em "Gerar QR Code"
 2. Escaneie com seu WhatsApp
 3. A sessão será salva em `./sessions/whatsapp`
 
-```bash
-docker-compose logs -f whatsapp-gateway
-```
+O agente IA responde automaticamente via WhatsApp em português do Brasil, executando ferramentas quando solicitado e enviando screenshots como imagens.
 
 ## Uso
 
@@ -168,33 +210,42 @@ YChatClaw implementa um sistema modular de Tools inspirado no OpenClaw:
 
 ```
 tools/
-├── devices/       # Comandos de dispositivos
-├── scheduling/    # Agendamento
-├── media/         # Geração e processamento de mídia
-└── external/      # Integrações externas
+├── registry.ts              # Registro central de tools
+├── web-automation-tools.ts  # 18 tools de automação web (Puppeteer)
+├── devices/                 # Comandos de dispositivos
+├── scheduling/              # Agendamento
+└── media/                   # Geração e processamento de mídia
 ```
 
 Cada Tool é uma função que a IA pode chamar baseada na intenção do usuário.
+A IA suporta execução multi-step (várias ferramentas em sequência numa única mensagem).
 
 ## Estrutura do Projeto
 
 ```
 ychatclaw/
 ├── services/              # Microserviços
-│   ├── api-server/       # REST API
+│   ├── api-server/       # REST API + Dashboard
 │   ├── websocket-server/ # WebSocket para nodes
-│   ├── ai-service/       # Integração Ollama
+│   ├── ai-service/       # Integração Ollama + Tools
+│   ├── web-automation/   # Puppeteer (headless Chrome)
 │   ├── worker/           # BullMQ worker
-│   ├── whatsapp-gateway/ # WhatsApp Baileys
+│   ├── whatsapp-gateway/ # WhatsApp (whatsapp-web.js)
 │   ├── telegram-gateway/ # Telegram bot
 │   └── discord-gateway/  # Discord bot
 ├── android-agent/        # Agente Android (Kotlin)
-├── shared/               # Código compartilhado
-├── tools/                # Sistema de Skills
-├── scripts/              # Scripts de deploy
+│   ├── app/src/main/java/com/ychatclaw/agent/
+│   │   ├── MainActivity.kt       # UI principal
+│   │   ├── WebSocketManager.kt   # Conexão WebSocket
+│   │   ├── CommandExecutor.kt    # Executor de comandos + web automation
+│   │   ├── WebViewActivity.kt    # WebView com JS injection
+│   │   ├── YChatClawService.kt   # Foreground service
+│   │   └── DeviceIdManager.kt    # UUID único por dispositivo
+├── shared/               # Código compartilhado (Prisma)
+├── scripts/              # Scripts de deploy e build APK
 ├── docker/               # Dockerfiles
 ├── media/                # Armazenamento de mídia
-└── docs/                 # Documentação
+└── sessions/             # Sessões WhatsApp persistentes
 ```
 
 ## Estabilidade
