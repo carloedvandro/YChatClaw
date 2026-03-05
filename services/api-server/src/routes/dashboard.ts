@@ -66,6 +66,129 @@ router.get('/', (req, res) => {
             overflow: auto !important;
             max-height: 350px !important;
         }
+        
+        /* Modal/Lightbox para QR Code */
+        .qr-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+        }
+        
+        .qr-modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalSlideIn 0.3s ease-out;
+        }
+        
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .qr-modal-header {
+            margin-bottom: 20px;
+        }
+        
+        .qr-modal-header h2 {
+            color: #333;
+            margin: 0;
+            font-size: 24px;
+        }
+        
+        .qr-modal-body {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            max-height: 400px;
+            overflow: auto;
+        }
+        
+        .qr-modal-body pre {
+            font-size: 4px !important;
+            line-height: 1.1 !important;
+            margin: 0 !important;
+            white-space: pre !important;
+            font-family: 'Courier New', monospace !important;
+            background: transparent !important;
+            color: #000 !important;
+        }
+        
+        .qr-instructions {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #2196F3;
+            text-align: left;
+        }
+        
+        .qr-instructions h4 {
+            margin: 0 0 10px 0;
+            color: #1976D2;
+            font-size: 16px;
+        }
+        
+        .qr-instructions ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .qr-instructions li {
+            margin: 5px 0;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        .qr-modal-close {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: background 0.3s;
+        }
+        
+        .qr-modal-close:hover {
+            background: #d32f2f;
+        }
+        
+        .qr-modal-refresh {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: background 0.3s;
+        }
+        
+        .qr-modal-refresh:hover {
+            background: #45a049;
+        }
     </style>
 </head>
 <body>
@@ -119,6 +242,29 @@ router.get('/', (req, res) => {
                     <div>Carregando logs...</div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal para QR Code -->
+    <div id="qrModal" class="qr-modal">
+        <div class="qr-modal-content">
+            <div class="qr-modal-header">
+                <h2>📱 QR Code WhatsApp</h2>
+            </div>
+            <div class="qr-modal-body">
+                <pre id="modalQrCode">Carregando...</pre>
+            </div>
+            <div class="qr-instructions">
+                <h4>📋 Como escanear:</h4>
+                <ol>
+                    <li>Abra o WhatsApp no seu celular</li>
+                    <li>Vá em "Configurações" > "Dispositivos conectados"</li>
+                    <li>Toque em "Conectar um novo dispositivo"</li>
+                    <li>Aponte a câmera para este QR Code</li>
+                </ol>
+            </div>
+            <button class="qr-modal-refresh" onclick="loadWhatsAppQR()">🔄 Gerar Novo QR Code</button>
+            <button class="qr-modal-close" onclick="closeQrModal()">❌ Fechar</button>
         </div>
     </div>
 
@@ -231,53 +377,15 @@ router.get('/', (req, res) => {
                 console.log('📦 Dados recebidos:', generateData);
                 
                 if (generateData.qr) {
-                    console.log('✅ QR Code recebido, abrindo janela...');
+                    console.log('✅ QR Code recebido, abrindo modal...');
                     
-                    // Codificar QR Code para URL
-                    const encodedQR = encodeURIComponent(generateData.qr);
-                    const qrURL = '/dashboard/qr-view?qr=' + encodedQR;
-                    
-                    console.log('🔗 URL da janela:', qrURL);
-                    
-                    // Tentar abrir janela
-                    let qrWindow = null;
-                    try {
-                        qrWindow = window.open(qrURL, '_blank', 'width=400,height=500,scrollbars=yes,resizable=yes');
-                        console.log('🪟 Janela aberta:', qrWindow ? 'sucesso' : 'falha');
-                        
-                        if (!qrWindow || qrWindow.closed || typeof qrWindow.closed === 'undefined') {
-                            console.log('❌ Janela bloqueada, usando link alternativo');
-                            // Criar link como alternativa
-                            const link = document.createElement('a');
-                            link.href = qrURL;
-                            link.target = '_blank';
-                            link.textContent = '📱 Abrir QR Code em Nova Janela';
-                            link.style.display = 'block';
-                            link.style.textAlign = 'center';
-                            link.style.padding = '10px';
-                            link.style.background = '#4CAF50';
-                            link.style.color = 'white';
-                            link.style.textDecoration = 'none';
-                            link.style.borderRadius = '5px';
-                            link.style.margin = '10px 0';
-                            
-                            // Inserir link no container do QR Code
-                            const qrContainer = document.getElementById('qr-code');
-                            qrContainer.innerHTML = '';
-                            qrContainer.appendChild(link);
-                            qrContainer.style.display = 'block';
-                            
-                            // Simular clique no link
-                            setTimeout(() => link.click(), 100);
-                        }
-                    } catch (error) {
-                        console.error('❌ Erro ao abrir janela:', error);
-                    }
+                    // Abrir modal com QR Code
+                    document.getElementById('modalQrCode').textContent = generateData.qr;
+                    document.getElementById('qrModal').style.display = 'block';
                     
                     // Também exibir no dashboard
                     document.getElementById('qr-code').innerHTML = '<pre style="font-size: 6px; line-height: 1.2;">' + generateData.qr + '</pre>';
                     document.getElementById('qr-code').style.display = 'block';
-                    alert('📱 QR Code gerado! ' + (qrWindow ? 'Janela aberta!' : 'Clique no link abaixo para abrir em nova janela.'));
                     
                     // Atualizar status após gerar QR Code
                     setTimeout(checkWhatsAppStatus, 2000);
@@ -290,6 +398,18 @@ router.get('/', (req, res) => {
                 console.error('❌ Erro ao gerar QR Code:', error);
                 document.getElementById('qr-code').innerHTML = '<p style="color: #ff6b6b;">❌ Erro ao gerar QR Code: ' + error.message + '</p>';
                 document.getElementById('qr-code').style.display = 'block';
+            }
+        }
+        
+        function closeQrModal() {
+            document.getElementById('qrModal').style.display = 'none';
+        }
+        
+        // Fechar modal ao clicar fora dele
+        window.onclick = function(event) {
+            const modal = document.getElementById('qrModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
             }
         }
         
