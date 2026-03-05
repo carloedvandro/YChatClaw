@@ -21,17 +21,32 @@ interface SessionMessage {
 export async function processMessage(options: ProcessMessageOptions): Promise<any> {
   const { message, userId, channel, channelId, sessionId, prisma, redis, ollamaClient, toolRegistry } = options;
 
+  // Buscar ou criar usuário
+  let user = await prisma.user.findFirst({
+    where: { channelType: channel, externalId: userId },
+  });
+
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        channelType: channel,
+        externalId: userId,
+        name: userId,
+      },
+    });
+  }
+
   // Buscar ou criar sessão
   const sessionKey = sessionId || `${channel}:${userId}`;
   let session = await prisma.session.findFirst({
-    where: { userId, channelType: channel, channelId: channelId || '' },
+    where: { userId: user.id, channelType: channel, channelId: channelId || '' },
     orderBy: { lastActivity: 'desc' },
   });
 
   if (!session) {
     session = await prisma.session.create({
       data: {
-        userId,
+        userId: user.id,
         channelType: channel,
         channelId: channelId || '',
         history: [],

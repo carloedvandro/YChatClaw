@@ -69,7 +69,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     const { userId, campaignId } = req.body;
     
     // Determinar tipo
-    let type = 'DOCUMENT';
+    let type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' = 'DOCUMENT';
     if (req.file.mimetype.startsWith('image/')) type = 'IMAGE';
     else if (req.file.mimetype.startsWith('video/')) type = 'VIDEO';
     else if (req.file.mimetype.startsWith('audio/')) type = 'AUDIO';

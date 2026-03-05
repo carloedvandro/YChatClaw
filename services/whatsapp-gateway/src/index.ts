@@ -97,6 +97,52 @@ async function initWhatsAppClient(): Promise<void> {
       }
     });
     
+    // Evento: Mensagem recebida
+    waClient.on('message', async (msg: any) => {
+      try {
+        const from = msg.from;
+        const body = msg.body;
+        const isGroup = msg.from.endsWith('@g.us');
+        
+        console.log(`📩 Mensagem de ${from}: ${body.substring(0, 50)}...`);
+        
+        // Armazenar mensagem no Redis
+        const msgData = { from, body, timestamp: new Date().toISOString(), isGroup };
+        await redis.lpush('whatsapp:messages', JSON.stringify(msgData));
+        await redis.ltrim('whatsapp:messages', 0, 99);
+        
+        // Incrementar contador
+        await redis.incr('whatsapp:message_count');
+        
+        // Ignorar mensagens de grupo por padrão
+        if (isGroup) return;
+        
+        // Encaminhar para AI Service
+        try {
+          const aiResponse = await fetch('http://ai-service:3002/process', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: body,
+              userId: from.replace('@c.us', ''),
+              channel: 'whatsapp',
+              channelId: from,
+            }),
+          });
+          const aiData = await aiResponse.json() as any;
+          
+          if (aiData.response) {
+            await msg.reply(aiData.response);
+            console.log(`🤖 Resposta AI enviada para ${from}`);
+          }
+        } catch (aiErr) {
+          console.error('❌ Erro ao processar com AI:', (aiErr as Error).message);
+        }
+      } catch (error) {
+        console.error('❌ Erro ao processar mensagem:', (error as Error).message);
+      }
+    });
+
     // Evento: Cliente pronto (autenticado)
     waClient.on('ready', () => {
       console.log('✅ WhatsApp conectado com sucesso!');
@@ -262,6 +308,52 @@ app.post('/generate-qr', async (req, res) => {
       message: 'Erro ao gerar QR Code: ' + (error as Error).message,
       error: (error as Error).message
     });
+  }
+});
+
+// Endpoint para enviar mensagem
+app.post('/send-message', async (req, res) => {
+  try {
+    const { to, message } = req.body;
+    
+    if (!to || !message) {
+      return res.status(400).json({ success: false, error: 'Parâmetros obrigatórios: to, message' });
+    }
+    
+    if (!waClient || connectionStatus !== 'connected') {
+      return res.json({ success: false, error: 'WhatsApp não está conectado' });
+    }
+    
+    // Formatar número (adicionar @c.us se necessário)
+    const chatId = to.includes('@') ? to : `${to}@c.us`;
+    
+    await waClient.sendMessage(chatId, message);
+    
+    // Armazenar mensagem enviada no Redis
+    const msgData = { from: 'me', to: chatId, body: message, timestamp: new Date().toISOString(), direction: 'outgoing' };
+    await redis.lpush('whatsapp:messages', JSON.stringify(msgData));
+    await redis.ltrim('whatsapp:messages', 0, 99);
+    await redis.incr('whatsapp:message_count');
+    
+    console.log(`📤 Mensagem enviada para ${chatId}`);
+    res.json({ success: true, message: 'Mensagem enviada com sucesso' });
+  } catch (error) {
+    console.error('❌ Erro ao enviar mensagem:', (error as Error).message);
+    res.json({ success: false, error: (error as Error).message });
+  }
+});
+
+// Endpoint para listar mensagens recentes
+app.get('/messages', async (req, res) => {
+  try {
+    const messages = await redis.lrange('whatsapp:messages', 0, 49);
+    const count = await redis.get('whatsapp:message_count') || '0';
+    res.json({
+      messages: messages.map((m: string) => JSON.parse(m)),
+      totalCount: parseInt(count),
+    });
+  } catch (error) {
+    res.json({ messages: [], totalCount: 0 });
   }
 });
 
