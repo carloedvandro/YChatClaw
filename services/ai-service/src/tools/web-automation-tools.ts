@@ -8,7 +8,7 @@ async function callWebAutomation(endpoint: string, body: any): Promise<any> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  return response.json();
+  return response.json() as Promise<any>;
 }
 
 export function getWebAutomationTools(): Tool[] {
@@ -459,7 +459,7 @@ export function getWebAutomationTools(): Tool[] {
       execute: async (params, context): Promise<ToolResult> => {
         try {
           const response = await fetch(`${WEB_AUTOMATION_URL}/sessions`);
-          const result = await response.json();
+          const result: any = await response.json();
           return { success: result.success, data: result.data, error: result.error };
         } catch (error) {
           return { success: false, error: (error as Error).message };
