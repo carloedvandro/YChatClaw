@@ -235,14 +235,49 @@ router.get('/', (req, res) => {
                     
                     // Codificar QR Code para URL
                     const encodedQR = encodeURIComponent(generateData.qr);
+                    const qrURL = '/dashboard/qr-view?qr=' + encodedQR;
                     
-                    // Abrir QR Code em nova janela com QR Code na URL
-                    const qrWindow = window.open('/dashboard/qr-view?qr=' + encodedQR, '_blank', 'width=400,height=500,scrollbars=yes,resizable=yes');
+                    console.log('🔗 URL da janela:', qrURL);
+                    
+                    // Tentar abrir janela
+                    let qrWindow = null;
+                    try {
+                        qrWindow = window.open(qrURL, '_blank', 'width=400,height=500,scrollbars=yes,resizable=yes');
+                        console.log('🪟 Janela aberta:', qrWindow ? 'sucesso' : 'falha');
+                        
+                        if (!qrWindow || qrWindow.closed || typeof qrWindow.closed === 'undefined') {
+                            console.log('❌ Janela bloqueada, usando link alternativo');
+                            // Criar link como alternativa
+                            const link = document.createElement('a');
+                            link.href = qrURL;
+                            link.target = '_blank';
+                            link.textContent = '📱 Abrir QR Code em Nova Janela';
+                            link.style.display = 'block';
+                            link.style.textAlign = 'center';
+                            link.style.padding = '10px';
+                            link.style.background = '#4CAF50';
+                            link.style.color = 'white';
+                            link.style.textDecoration = 'none';
+                            link.style.borderRadius = '5px';
+                            link.style.margin = '10px 0';
+                            
+                            // Inserir link no container do QR Code
+                            const qrContainer = document.getElementById('qr-code');
+                            qrContainer.innerHTML = '';
+                            qrContainer.appendChild(link);
+                            qrContainer.style.display = 'block';
+                            
+                            // Simular clique no link
+                            setTimeout(() => link.click(), 100);
+                        }
+                    } catch (error) {
+                        console.error('❌ Erro ao abrir janela:', error);
+                    }
                     
                     // Também exibir no dashboard
                     document.getElementById('qr-code').innerHTML = '<pre style="font-size: 6px; line-height: 1.2;">' + generateData.qr + '</pre>';
                     document.getElementById('qr-code').style.display = 'block';
-                    alert('📱 QR Code aberto em nova janela! Escaneie com WhatsApp.');
+                    alert('📱 QR Code gerado! ' + (qrWindow ? 'Janela aberta!' : 'Clique no link abaixo para abrir em nova janela.'));
                     
                     // Atualizar status após gerar QR Code
                     setTimeout(checkWhatsAppStatus, 2000);
