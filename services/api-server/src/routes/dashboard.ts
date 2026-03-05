@@ -123,13 +123,19 @@ router.get('/', (req, res) => {
         }
         
         .qr-modal-body pre {
-            font-size: 4px !important;
-            line-height: 1.1 !important;
+            font-size: 10px !important;
+            line-height: 10px !important;
             margin: 0 !important;
+            padding: 0 !important;
             white-space: pre !important;
-            font-family: 'Courier New', monospace !important;
-            background: transparent !important;
-            color: #000 !important;
+            font-family: monospace !important;
+            background: white !important;
+            color: black !important;
+            letter-spacing: 0 !important;
+            word-spacing: 0 !important;
+            display: block !important;
+            text-align: left !important;
+            overflow-x: auto !important;
         }
         
         .qr-instructions {
