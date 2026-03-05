@@ -114,28 +114,27 @@ router.get('/', (req, res) => {
         }
         
         .qr-modal-body {
-            background: #f8f9fa;
+            background: white;
             padding: 20px;
             border-radius: 10px;
             margin: 20px 0;
-            max-height: 400px;
+            max-height: 350px;
             overflow: auto;
+            border: 2px solid #e0e0e0;
         }
         
         .qr-modal-body pre {
-            font-size: 10px !important;
-            line-height: 10px !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            white-space: pre !important;
-            font-family: monospace !important;
-            background: white !important;
-            color: black !important;
-            letter-spacing: 0 !important;
-            word-spacing: 0 !important;
-            display: block !important;
-            text-align: left !important;
-            overflow-x: auto !important;
+            font-size: 14px;
+            line-height: 14px;
+            margin: 0 auto;
+            padding: 0;
+            white-space: pre;
+            font-family: 'Courier New', Courier, monospace;
+            background: white;
+            color: black;
+            display: block;
+            text-align: center;
+            min-width: fit-content;
         }
         
         .qr-instructions {
