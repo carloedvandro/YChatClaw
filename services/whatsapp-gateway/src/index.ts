@@ -26,7 +26,7 @@ async function startWhatsApp() {
 
   client.on('qr', (qr) => {
     console.log('📱 QR Code gerado! Escaneie com WhatsApp:');
-    qrcode.generate(qr, { small: true });
+    qrcode.generate(qr, { small: false });
   });
 
   client.on('ready', () => {
