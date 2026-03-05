@@ -1,15 +1,7 @@
 import express from 'express';
 import axios from 'axios';
-import basicAuth from 'express-basic-auth';
 
 const router = express.Router();
-
-// Middleware de autenticação
-router.use('/', basicAuth({
-  users: { admin: 'ychatclaw123' },
-  challenge: true,
-  realm: 'YChatClaw Dashboard'
-}));
 
 // Página principal do Dashboard
 router.get('/', (req, res) => {
