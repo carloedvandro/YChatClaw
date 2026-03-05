@@ -114,8 +114,12 @@ async function initWhatsAppClient(): Promise<void> {
         // Incrementar contador
         await redis.incr('whatsapp:message_count');
         
-        // Ignorar mensagens de grupo por padrão
+        // Ignorar mensagens de grupo, bots e broadcasts
         if (isGroup) return;
+        if (from.endsWith('@lid') || from.endsWith('@newsletter') || from === 'status@broadcast') {
+          console.log(`⏭️ Ignorando mensagem automatizada de ${from}`);
+          return;
+        }
         
         // Encaminhar para AI Service
         try {

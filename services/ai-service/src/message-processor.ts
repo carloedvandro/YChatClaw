@@ -26,6 +26,25 @@ interface ParsedAction {
 // Sessões de browser por usuário
 const userBrowserSessions: Map<string, string> = new Map();
 
+// Mutex para serializar chamadas ao Ollama (evitar flood)
+let ollamaLock: Promise<void> = Promise.resolve();
+
+function withOllamaLock<T>(fn: () => Promise<T>, timeoutMs: number = 90000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Ollama queue timeout')), timeoutMs);
+    ollamaLock = ollamaLock.then(async () => {
+      try {
+        const result = await fn();
+        clearTimeout(timer);
+        resolve(result);
+      } catch (err) {
+        clearTimeout(timer);
+        reject(err);
+      }
+    }).catch(() => {});
+  });
+}
+
 export async function processMessage(options: ProcessMessageOptions): Promise<any> {
   const { message, userId, channel, channelId, sessionId, prisma, redis, ollamaClient, toolRegistry } = options;
 
@@ -86,7 +105,7 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
 
     try {
       const tools = toolRegistry.getToolDescriptions();
-      aiResponse = await ollamaClient.chat(history, tools);
+      aiResponse = await withOllamaLock(() => ollamaClient.chat(history, tools));
       console.log(`🤖 AI raw response: ${aiResponse.substring(0, 300)}...`);
 
       // Parsear JSON da resposta AI
