@@ -351,9 +351,47 @@ function detectIntent(message: string, userId: string): { actions: ParsedAction[
   }
 
   // Listar dispositivos
-  if (/disposit|device|aparelho|tablet|celular.*conect/i.test(msg)) {
+  if (/disposit|device|aparelho|tablet|celular.*conect|lista.*celular/i.test(msg)) {
     actions.push({ action: 'list_devices', params: {} });
     fallbackResponse = 'Vou verificar os dispositivos conectados...';
+  }
+
+  // Comandos para dispositivo Android (abrir app/url no celular)
+  const wantsOnDevice = /no celular|no tablet|no dispositivo|no aparelho|no android|no telefone/i.test(msg);
+  if (wantsOnDevice && !actions.some(a => a.action === 'send_device_command')) {
+    const deviceUrlMatch = message.match(/https?:\/\/[^\s]+/i);
+    // Abrir URL no dispositivo
+    if (deviceUrlMatch && /abr|acesse|naveg/i.test(msg)) {
+      actions.push({ action: 'send_device_command', params: { deviceId: '__first__', commandName: 'open_url', params: { url: deviceUrlMatch[0] } } });
+      fallbackResponse = `Abrindo ${deviceUrlMatch[0]} no dispositivo!`;
+    }
+    // Abrir app no dispositivo
+    const appMatch = message.match(/(?:abr[aei]?|acess[ae]|inici[ae]).*?(youtube|whatsapp|chrome|instagram|facebook|twitter|tiktok|spotify|netflix|telegram|gmail|maps|camera|galeria|calculadora|relogio|configurac)/i);
+    if (appMatch) {
+      const appPackages: Record<string, string> = {
+        youtube: 'com.google.android.youtube',
+        whatsapp: 'com.whatsapp',
+        chrome: 'com.android.chrome',
+        instagram: 'com.instagram.android',
+        facebook: 'com.facebook.katana',
+        twitter: 'com.twitter.android',
+        tiktok: 'com.zhiliaoapp.musically',
+        spotify: 'com.spotify.music',
+        netflix: 'com.netflix.mediaclient',
+        telegram: 'org.telegram.messenger',
+        gmail: 'com.google.android.gm',
+        maps: 'com.google.android.apps.maps',
+        camera: 'com.android.camera',
+        galeria: 'com.google.android.apps.photos',
+        calculadora: 'com.google.android.calculator',
+        relogio: 'com.google.android.deskclock',
+        configurac: 'com.android.settings',
+      };
+      const appName = appMatch[1].toLowerCase();
+      const pkg = appPackages[appName] || `com.${appName}`;
+      actions.push({ action: 'send_device_command', params: { deviceId: '__first__', commandName: 'open_app', params: { package_name: pkg } } });
+      fallbackResponse = `Abrindo ${appMatch[1]} no dispositivo!`;
+    }
   }
 
   return { actions, fallbackResponse };
@@ -478,6 +516,9 @@ function generateFriendlyResponse(actions: ParsedAction[], results: any[]): stri
         break;
       case 'send_whatsapp_message':
         parts.push(`Mensagem enviada para ${result.data?.to || 'o número'}!`);
+        break;
+      case 'send_device_command':
+        parts.push('Comando enviado para o dispositivo!');
         break;
       case 'list_devices':
         const devices = result.data?.devices;

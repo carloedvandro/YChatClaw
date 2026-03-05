@@ -28,6 +28,7 @@ export class ToolRegistry {
   constructor() {
     this.registerDefaultTools();
     this.registerMessagingTools();
+    this.registerDeviceCommandTools();
     this.registerWebAutomationTools();
   }
 
@@ -237,6 +238,60 @@ export class ToolRegistry {
         }
       },
     });
+  }
+
+  private registerDeviceCommandTools() {
+    // Tool: send_device_command - envia comando direto para dispositivo Android via WebSocket server
+    this.register({
+      name: 'send_device_command',
+      description: 'Envia um comando para um dispositivo Android conectado (abrir app, abrir URL, screenshot, etc)',
+      parameters: {
+        type: 'object',
+        properties: {
+          deviceId: { type: 'string', description: 'ID do dispositivo (use __first__ para o primeiro online)' },
+          commandName: { type: 'string', description: 'Nome do comando: open_url, open_app, open_webview, get_device_info, web_navigate, web_screenshot' },
+          params: { type: 'object', description: 'Parâmetros do comando (url, package_name, etc)' },
+        },
+        required: ['commandName'],
+      },
+      execute: async (params, context) => {
+        try {
+          let deviceId = params.deviceId || '__first__';
+
+          // Se deviceId é __first__, buscar o primeiro dispositivo online
+          if (deviceId === '__first__') {
+            const devices = await context.prisma.device.findMany({
+              where: { status: 'ONLINE' },
+              take: 1,
+              orderBy: { lastHeartbeat: 'desc' },
+            });
+            if (devices.length === 0) {
+              return { success: false, error: 'Nenhum dispositivo online encontrado' };
+            }
+            deviceId = devices[0].id;
+          }
+
+          const wsServerUrl = process.env.WS_SERVER_URL || 'http://websocket-server:3005';
+          const response = await fetch(`${wsServerUrl}/send-command`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              deviceId,
+              command: {
+                id: `ai-${Date.now()}`,
+                commandName: params.commandName,
+                params: params.params || {},
+              },
+            }),
+          });
+          const data = await response.json() as any;
+          return { success: data.success, data };
+        } catch (error) {
+          return { success: false, error: (error as Error).message };
+        }
+      },
+    });
+    console.log('📱 Ferramenta de comando de dispositivo registrada');
   }
 
   private registerWebAutomationTools() {

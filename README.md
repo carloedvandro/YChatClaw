@@ -168,7 +168,7 @@ Acesse o dashboard em `http://SEU_SERVIDOR:3000/dashboard` para:
 - Visualizar dispositivos conectados
 - Enviar mensagens e ver logs
 
-**Credenciais padrão**: `admin` / `ychatclaw123`
+**Credenciais padrão**: `admin` / `ychatclaw`
 
 ## Configuração WhatsApp
 

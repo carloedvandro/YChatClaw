@@ -81,11 +81,13 @@ services:
     environment:
       NODE_ENV: production
       WS_PORT: 3001
+      HTTP_PORT: 3005
       REDIS_URL: ${REDIS_URL}
       DATABASE_URL: ${DATABASE_URL}
       HEARTBEAT_TIMEOUT_MS: 90000
     ports:
       - "3001:3001"
+      - "3005:3005"
     depends_on:
       postgres:
         condition: service_healthy
@@ -124,6 +126,7 @@ services:
       OLLAMA_VISION_MODEL: ${OLLAMA_VISION_MODEL:-llava:13b}
       WEB_AUTOMATION_URL: http://web-automation:3004
       WHATSAPP_GATEWAY_URL: http://whatsapp-gateway:3003
+      WS_SERVER_URL: http://websocket-server:3005
     ports:
       - "3002:3002"
     depends_on:
@@ -148,7 +151,7 @@ services:
       NODE_ENV: production
       REDIS_URL: ${REDIS_URL}
       DATABASE_URL: ${DATABASE_URL}
-      WS_SERVER_URL: ws://websocket-server:3001
+      WS_SERVER_URL: http://websocket-server:3005
       WORKER_CONCURRENCY: 5
       BROADCAST_BATCH_SIZE: 10
       BROADCAST_DELAY_MS: 200

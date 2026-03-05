@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
+import { createServer, IncomingMessage, ServerResponse } from 'http';
 
 dotenv.config();
 
@@ -10,6 +11,7 @@ const prisma = new PrismaClient();
 const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 
 const PORT = parseInt(process.env.WS_PORT || '3001');
+const HTTP_PORT = parseInt(process.env.HTTP_PORT || '3005');
 const HEARTBEAT_TIMEOUT = parseInt(process.env.HEARTBEAT_TIMEOUT_MS || '90000');
 
 // Mapa de conexões ativas: deviceId -> WebSocket
@@ -21,6 +23,107 @@ const pendingConnections = new Map<string, { ws: WebSocket; timestamp: number }>
 const wss = new WebSocketServer({ port: PORT });
 
 console.log(`🚀 WebSocket Server rodando na porta ${PORT}`);
+
+// ===== HTTP API SERVER =====
+const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+  res.setHeader('Content-Type', 'application/json');
+
+  // Parse body for POST requests
+  let body = '';
+  if (req.method === 'POST') {
+    await new Promise<void>((resolve) => {
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', resolve);
+    });
+  }
+
+  // GET /health
+  if (req.method === 'GET' && req.url === '/health') {
+    res.writeHead(200);
+    res.end(JSON.stringify({
+      status: 'ok',
+      connectedDevices: connections.size,
+      pendingConnections: pendingConnections.size,
+    }));
+    return;
+  }
+
+  // GET /devices - list connected devices
+  if (req.method === 'GET' && req.url === '/devices') {
+    const deviceIds = Array.from(connections.keys());
+    const devices = [];
+    for (const deviceId of deviceIds) {
+      const ws = connections.get(deviceId);
+      const deviceData = await redis.get(`device:${deviceId}`);
+      devices.push({
+        id: deviceId,
+        connected: ws?.readyState === WebSocket.OPEN,
+        ...(deviceData ? JSON.parse(deviceData) : {}),
+      });
+    }
+    res.writeHead(200);
+    res.end(JSON.stringify({ success: true, devices, total: devices.length }));
+    return;
+  }
+
+  // POST /send-command - send command to a device
+  if (req.method === 'POST' && req.url === '/send-command') {
+    try {
+      const data = JSON.parse(body);
+      const { deviceId, command } = data;
+
+      if (!deviceId || !command) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ success: false, error: 'deviceId e command são obrigatórios' }));
+        return;
+      }
+
+      const success = await sendCommandToDevice(deviceId, command);
+      if (success) {
+        res.writeHead(200);
+        res.end(JSON.stringify({ success: true, message: 'Comando enviado' }));
+      } else {
+        res.writeHead(404);
+        res.end(JSON.stringify({ success: false, error: 'Dispositivo não conectado' }));
+      }
+    } catch (error) {
+      res.writeHead(500);
+      res.end(JSON.stringify({ success: false, error: (error as Error).message }));
+    }
+    return;
+  }
+
+  // POST /broadcast - broadcast command to multiple devices
+  if (req.method === 'POST' && req.url === '/broadcast') {
+    try {
+      const data = JSON.parse(body);
+      const { deviceIds, command } = data;
+
+      if (!command) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ success: false, error: 'command é obrigatório' }));
+        return;
+      }
+
+      const targets = deviceIds || Array.from(connections.keys());
+      const result = await broadcastCommand(targets, command);
+      res.writeHead(200);
+      res.end(JSON.stringify({ success: true, ...result }));
+    } catch (error) {
+      res.writeHead(500);
+      res.end(JSON.stringify({ success: false, error: (error as Error).message }));
+    }
+    return;
+  }
+
+  // 404
+  res.writeHead(404);
+  res.end(JSON.stringify({ error: 'Rota não encontrada' }));
+});
+
+httpServer.listen(HTTP_PORT, () => {
+  console.log(`📡 HTTP API rodando na porta ${HTTP_PORT}`);
+});
 
 wss.on('connection', (ws: WebSocket) => {
   const wsId = uuidv4();
@@ -129,7 +232,23 @@ async function handleRegister(wsId: string, ws: WebSocket, message: any) {
 }
 
 async function handleHeartbeat(wsId: string, ws: WebSocket, message: any) {
-  const { deviceId } = message;
+  let { deviceId } = message;
+
+  // O Android pode enviar UUID ao invés do Prisma ID
+  // Tentar resolver UUID -> Prisma ID se não encontrar na connections
+  if (deviceId && !connections.has(deviceId)) {
+    // Procurar por UUID
+    try {
+      const device = await prisma.device.findUnique({ where: { uuid: deviceId } });
+      if (device) {
+        deviceId = device.id;
+        // Atualizar a conexão para usar o ID correto
+        connections.set(device.id, ws);
+      }
+    } catch (e) {
+      // Se não encontrar por UUID, manter como está
+    }
+  }
 
   if (!deviceId || !connections.has(deviceId)) {
     ws.send(JSON.stringify({ type: 'error', message: 'Dispositivo não registrado' }));

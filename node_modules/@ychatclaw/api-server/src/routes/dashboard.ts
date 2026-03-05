@@ -201,7 +201,7 @@ router.get('/services-health', async (req, res) => {
     fetch('http://localhost:3000/health').then(r => r.json()),
     fetch('http://whatsapp-gateway:3003/health').then(r => r.json()),
     fetch('http://ai-service:3002/health').then(r => r.json()),
-    fetch('http://websocket-server:3001/health').then(r => ({ status: 'ok' })).catch(() => fetch('http://websocket-server:3001/').then(() => ({ status: 'ok' }))),
+    fetch('http://websocket-server:3005/health').then(r => r.json()),
     fetch('http://web-automation:3004/health').then(r => r.json()),
   ]);
 
@@ -212,6 +212,53 @@ router.get('/services-health', async (req, res) => {
   }));
 
   res.json({ services });
+});
+
+// === Device Control Proxy Routes ===
+router.get('/devices', async (req, res) => {
+  try {
+    // Get devices from database
+    const dbRes = await fetch('http://localhost:3000/devices');
+    const dbData = await dbRes.json() as any;
+    // Get connected devices from WebSocket server
+    let wsDevices: any[] = [];
+    try {
+      const wsRes = await fetch('http://websocket-server:3005/devices');
+      const wsData = await wsRes.json() as any;
+      wsDevices = wsData.devices || [];
+    } catch (e) { /* WebSocket server may be down */ }
+    // Merge: mark which DB devices are actually connected via WS
+    const wsIds = new Set(wsDevices.filter((d: any) => d.connected).map((d: any) => d.id));
+    const devices = (dbData.devices || []).map((d: any) => ({
+      ...d,
+      wsConnected: wsIds.has(d.id),
+    }));
+    res.json({ devices });
+  } catch (error) {
+    res.json({ devices: [], error: (error as Error).message });
+  }
+});
+
+router.post('/send-device-command', async (req, res) => {
+  try {
+    const { deviceId, commandName, params } = req.body;
+    if (!deviceId || !commandName) {
+      return res.status(400).json({ success: false, error: 'deviceId e commandName obrigatórios' });
+    }
+    // Send directly via WebSocket server HTTP API
+    const wsRes = await fetch('http://websocket-server:3005/send-command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deviceId,
+        command: { id: `dash-${Date.now()}`, commandName, params: params || {} },
+      }),
+    });
+    const data = await wsRes.json();
+    res.json(data);
+  } catch (error) {
+    res.json({ success: false, error: (error as Error).message });
+  }
 });
 
 // === Web Automation Proxy Routes ===
@@ -521,7 +568,36 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#0f0f23;
     </div>
   </div>
 
-  <!-- Row 4: Web Automation -->
+  <!-- Row 4: Device Control -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header"><h3>&#128241; Controle de Dispositivos</h3><span class="badge badge-blue" id="dev-badge">0 dispositivos</span></div>
+    <div class="card-body">
+      <div id="device-list" style="margin-bottom:12px">
+        <div style="text-align:center;color:#555;padding:20px">Carregando dispositivos...</div>
+      </div>
+      <div style="background:rgba(102,126,234,0.08);border:1px solid rgba(102,126,234,0.2);border-radius:8px;padding:14px;margin-top:10px">
+        <h4 style="font-size:13px;color:#ccc;margin-bottom:10px">Enviar Comando ao Dispositivo</h4>
+        <div class="web-toolbar">
+          <select id="dev-target" style="background:#16213e;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#fff;font-size:13px;min-width:200px"><option value="">Selecione um dispositivo...</option></select>
+          <select id="dev-cmd" style="background:#16213e;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#fff;font-size:13px;min-width:150px">
+            <option value="open_url">Abrir URL</option>
+            <option value="open_app">Abrir App</option>
+            <option value="open_webview">Abrir WebView</option>
+            <option value="get_device_info">Info do Dispositivo</option>
+            <option value="web_navigate">Navegar (WebView)</option>
+            <option value="web_screenshot">Screenshot (WebView)</option>
+          </select>
+        </div>
+        <div class="web-toolbar">
+          <input type="text" id="dev-param" placeholder="URL ou package_name (ex: https://google.com ou com.whatsapp)">
+          <button class="btn btn-success btn-sm" onclick="sendDeviceCmd()">Enviar Comando</button>
+        </div>
+        <div id="dev-result" style="display:none;margin-top:10px;background:#0a0a1a;border-radius:8px;padding:12px;font-size:12px;color:#999;max-height:150px;overflow-y:auto"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 5: Web Automation -->
   <div class="card" style="margin-bottom:20px">
     <div class="card-header"><h3>&#127760; Web Automation (Controle de Navegador)</h3><span class="badge badge-blue" id="web-badge">0 sessoes</span></div>
     <div class="card-body">
@@ -589,7 +665,7 @@ let logLines = [];
 
 // === LOAD ALL DATA ===
 async function refreshAll() {
-  await Promise.allSettled([loadStats(), loadServices(), checkWaStatus(), loadAiStatus(), loadWaMessages(), loadWebSessions(), loadLogs()]);
+  await Promise.allSettled([loadStats(), loadServices(), checkWaStatus(), loadAiStatus(), loadWaMessages(), loadDevices(), loadWebSessions(), loadLogs()]);
 }
 
 // === STATS ===
@@ -797,6 +873,58 @@ async function loadWaMessages() {
       }).join('');
     }
   } catch(e) { console.error('WA messages error:', e); }
+}
+
+// === DEVICE CONTROL ===
+async function loadDevices() {
+  try {
+    var r = await fetch('/dashboard/devices', {headers: hdrs});
+    var d = await r.json();
+    var devices = d.devices || [];
+    document.getElementById('dev-badge').textContent = devices.length + ' dispositivos';
+    var el = document.getElementById('device-list');
+    var sel = document.getElementById('dev-target');
+    if (devices.length === 0) {
+      el.innerHTML = '<div style="text-align:center;color:#555;padding:20px">Nenhum dispositivo registrado. Instale o APK no celular e conecte.</div>';
+      sel.innerHTML = '<option value="">Nenhum dispositivo</option>';
+      return;
+    }
+    el.innerHTML = devices.map(function(dev) {
+      var st = dev.wsConnected ? 'green' : (dev.status === 'ONLINE' ? 'yellow' : 'red');
+      var stLabel = dev.wsConnected ? 'Conectado' : dev.status;
+      var meta = dev.metadata || {};
+      var info = [meta.model, meta.manufacturer, meta.android_version ? 'Android ' + meta.android_version : ''].filter(Boolean).join(' | ');
+      return '<div class="service-item"><div class="dot ' + st + '"></div><span class="service-name" style="flex:1"><strong>' + (dev.name||dev.uuid.substring(0,8)) + '</strong><br><span style="font-size:11px;color:#666">' + (info || dev.uuid.substring(0,16)) + '</span></span><span class="badge badge-' + st + '">' + stLabel + '</span></div>';
+    }).join('');
+    sel.innerHTML = '<option value="">Selecione...</option>' + devices.map(function(dev) {
+      return '<option value="' + dev.id + '">' + (dev.name||dev.uuid.substring(0,8)) + (dev.wsConnected ? ' (online)' : '') + '</option>';
+    }).join('');
+    addLog('Dispositivos: ' + devices.length + ' registrados, ' + devices.filter(function(d){return d.wsConnected}).length + ' conectados', 'ok');
+  } catch(e) { console.error('Devices error:', e); addLog('Erro ao carregar dispositivos: ' + e.message, 'err'); }
+}
+
+async function sendDeviceCmd() {
+  var devId = document.getElementById('dev-target').value;
+  var cmd = document.getElementById('dev-cmd').value;
+  var param = document.getElementById('dev-param').value.trim();
+  if (!devId) return addLog('Selecione um dispositivo', 'warn');
+  var params = {};
+  if (cmd === 'open_url' || cmd === 'open_webview' || cmd === 'web_navigate') params = {url: param || 'https://google.com'};
+  else if (cmd === 'open_app') params = {package_name: param || 'com.android.chrome'};
+  addLog('Enviando ' + cmd + ' para dispositivo...', 'warn');
+  try {
+    var r = await fetch('/dashboard/send-device-command', {method:'POST', headers:hdrs, body:JSON.stringify({deviceId:devId, commandName:cmd, params:params})});
+    var d = await r.json();
+    var resultEl = document.getElementById('dev-result');
+    resultEl.style.display = 'block';
+    if (d.success) {
+      resultEl.innerHTML = '<span style="color:#10b981">Comando enviado com sucesso!</span><br><pre style="color:#888;margin-top:6px">' + JSON.stringify(d, null, 2) + '</pre>';
+      addLog('Comando ' + cmd + ' enviado com sucesso', 'ok');
+    } else {
+      resultEl.innerHTML = '<span style="color:#ef4444">Erro: ' + (d.error||'desconhecido') + '</span>';
+      addLog('Erro ao enviar comando: ' + (d.error||''), 'err');
+    }
+  } catch(e) { addLog('Erro: ' + e.message, 'err'); }
 }
 
 // === WEB AUTOMATION ===

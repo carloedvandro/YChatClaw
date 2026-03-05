@@ -141,6 +141,8 @@ Ferramentas:
 - web_close_browser: fecha navegador. params: {"sessionId":"__auto__"}
 - send_whatsapp_message: envia mensagem WhatsApp. params: {"to":"5511999999999","message":"texto"}
 - list_devices: lista dispositivos. params: {}
+- send_device_command: envia comando para dispositivo Android. params: {"deviceId":"__first__","commandName":"open_url","params":{"url":"https://..."}}
+  Comandos disponiveis: open_url, open_app (package_name), open_webview (url), get_device_info, web_navigate (url), web_screenshot
 
 Exemplos:
 User: "Abre google.com e tira um print"
