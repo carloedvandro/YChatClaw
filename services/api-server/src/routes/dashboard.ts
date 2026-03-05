@@ -161,7 +161,8 @@ router.get('/', (req, res) => {
                 const generateResponse = await fetch('/dashboard/whatsapp-generate-qr', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Basic YWRtaW46eWNoYXRjbGF3MTIz'
                     }
                 });
                 const generateData = await generateResponse.json();
@@ -186,7 +187,11 @@ router.get('/', (req, res) => {
         
         async function checkWhatsAppStatus() {
             try {
-                const response = await fetch('/dashboard/whatsapp-status');
+                const response = await fetch('/dashboard/whatsapp-status', {
+                    headers: {
+                        'Authorization': 'Basic YWRtaW46eWNoYXRjbGF3MTIz'
+                    }
+                });
                 const data = await response.json();
                 
                 const statusDiv = document.getElementById('whatsapp-status');
