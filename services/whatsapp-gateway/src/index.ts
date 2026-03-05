@@ -393,5 +393,16 @@ app.post('/disconnect', async (req, res) => {
 app.listen(port, () => {
   console.log(`🚀 WhatsApp Gateway rodando na porta ${port}`);
   console.log('📱 Modo real - WhatsApp Web via whatsapp-web.js');
-  console.log('🔗 Aguardando requisição para gerar QR Code...');
+  
+  // Auto-conectar se já existe sessão salva
+  const sessionDir = path.join(sessionPath, '.wwebjs_auth');
+  const sessionDirAlt = path.join(sessionPath, 'session');
+  if (fs.existsSync(sessionDir) || fs.existsSync(sessionDirAlt)) {
+    console.log('� Sessão anterior encontrada, reconectando automaticamente...');
+    initWhatsAppClient().catch(err => {
+      console.error('❌ Erro na auto-reconexão:', err.message);
+    });
+  } else {
+    console.log('�🔗 Aguardando requisição para gerar QR Code...');
+  }
 });
