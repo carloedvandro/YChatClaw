@@ -125,30 +125,51 @@ router.get('/', (req, res) => {
     <script>
         async function loadData() {
             try {
+                // Carregar health
                 const healthResponse = await fetch('/health', {
                     headers: {
                         'Authorization': 'Basic YWRtaW46eWNoYXRjbGF3MTIz'
                     }
                 });
                 const healthData = await healthResponse.json();
-                
-                const devicesResponse = await fetch('/api/devices', {
-                    headers: {
-                        'Authorization': 'Basic YWRtaW46eWNoYXRjbGF3MTIz'
-                    }
-                });
-                const devicesData = await devicesResponse.json();
-                
-                const logsResponse = await fetch('/api/logs', {
-                    headers: {
-                        'Authorization': 'Basic YWRtaW46eWNoYXRjbGF3MTIz'
-                    }
-                });
-                const logsData = await logsResponse.json();
-                
                 updateServicesStatus(healthData);
-                document.getElementById('active-devices').textContent = devicesData.length || 0;
-                updateLogs(logsData);
+                
+                // Carregar devices (com fallback)
+                try {
+                    const devicesResponse = await fetch('/api/devices', {
+                        headers: {
+                            'Authorization': 'Basic YWRtaW46eWNoYXRjbGF3MTIz'
+                        }
+                    });
+                    if (devicesResponse.ok) {
+                        const devicesData = await devicesResponse.json();
+                        document.getElementById('active-devices').textContent = devicesData.length || 0;
+                    } else {
+                        document.getElementById('active-devices').textContent = '0';
+                    }
+                } catch (error) {
+                    console.log('Devices API não disponível');
+                    document.getElementById('active-devices').textContent = '0';
+                }
+                
+                // Carregar logs (com fallback)
+                try {
+                    const logsResponse = await fetch('/api/logs', {
+                        headers: {
+                            'Authorization': 'Basic YWRtaW46eWNoYXRjbGF3MTIz'
+                        }
+                    });
+                    if (logsResponse.ok) {
+                        const logsData = await logsResponse.json();
+                        updateLogs(logsData);
+                    } else {
+                        updateLogs([]);
+                    }
+                } catch (error) {
+                    console.log('Logs API não disponível');
+                    updateLogs([]);
+                }
+                
             } catch (error) {
                 console.error('Erro ao carregar dados:', error);
                 document.getElementById('system-logs').innerHTML = '<div style="color: #ff6b6b;">❌ Erro ao carregar dados</div>';
