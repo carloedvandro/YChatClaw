@@ -12,7 +12,7 @@ import { mediaRoutes } from './routes/media';
 import { campaignRoutes } from './routes/campaigns';
 import { commandRoutes } from './routes/commands';
 import { healthRoutes } from './routes/health';
-import { router as dashboardRoutes } from './routes/dashboard';
+import { dashboardRoutes } from './routes/dashboard';
 
 dotenv.config();
 
