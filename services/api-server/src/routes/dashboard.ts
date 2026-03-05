@@ -124,17 +124,20 @@ router.get('/', (req, res) => {
         }
         
         .qr-modal-body pre {
-            font-size: 14px;
-            line-height: 14px;
-            margin: 0 auto;
-            padding: 0;
-            white-space: pre;
-            font-family: 'Courier New', Courier, monospace;
-            background: white;
-            color: black;
-            display: block;
-            text-align: center;
-            min-width: fit-content;
+            font-size: 12px !important;
+            line-height: 12px !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            white-space: pre !important;
+            font-family: 'Courier New', Courier, monospace !important;
+            background: white !important;
+            color: black !important;
+            display: inline-block !important;
+            text-align: left !important;
+            letter-spacing: 0 !important;
+            word-spacing: 0 !important;
+            -webkit-font-smoothing: none !important;
+            font-smooth: never !important;
         }
         
         .qr-instructions {
