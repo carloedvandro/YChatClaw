@@ -156,7 +156,11 @@ router.get('/', (req, res) => {
         }
 
         async function loadWhatsAppQR() {
+            console.log('🚀 Iniciando loadWhatsAppQR...');
+            
             try {
+                console.log('📡 Enviando requisição para /dashboard/whatsapp-generate-qr');
+                
                 // Gerar QR Code via API do dashboard
                 const generateResponse = await fetch('/dashboard/whatsapp-generate-qr', {
                     method: 'POST',
@@ -165,9 +169,14 @@ router.get('/', (req, res) => {
                         'Authorization': 'Basic YWRtaW46eWNoYXRjbGF3MTIz'
                     }
                 });
+                
+                console.log('📡 Resposta recebida:', generateResponse.status);
+                
                 const generateData = await generateResponse.json();
+                console.log('📦 Dados recebidos:', generateData);
                 
                 if (generateData.qr) {
+                    console.log('✅ QR Code recebido, exibindo...');
                     document.getElementById('qr-code').innerHTML = '<pre style="font-size: 8px; line-height: 1;">' + generateData.qr + '</pre>';
                     document.getElementById('qr-code').style.display = 'block';
                     alert('📱 QR Code gerado! Escaneie com WhatsApp.');
@@ -175,27 +184,37 @@ router.get('/', (req, res) => {
                     // Atualizar status após gerar QR Code
                     setTimeout(checkWhatsAppStatus, 2000);
                 } else {
+                    console.log('❌ QR Code não encontrado:', generateData.message);
                     document.getElementById('qr-code').innerHTML = '<p>' + generateData.message + '</p>';
                     document.getElementById('qr-code').style.display = 'block';
                 }
             } catch (error) {
-                console.error('Erro ao gerar QR Code:', error);
-                document.getElementById('qr-code').innerHTML = '<p style="color: #ff6b6b;">❌ Erro ao gerar QR Code</p>';
+                console.error('❌ Erro ao gerar QR Code:', error);
+                document.getElementById('qr-code').innerHTML = '<p style="color: #ff6b6b;">❌ Erro ao gerar QR Code: ' + error.message + '</p>';
                 document.getElementById('qr-code').style.display = 'block';
             }
         }
         
         async function checkWhatsAppStatus() {
+            console.log('🔄 Iniciando checkWhatsAppStatus...');
+            
             try {
+                console.log('📡 Enviando requisição para /dashboard/whatsapp-status');
+                
                 const response = await fetch('/dashboard/whatsapp-status', {
                     headers: {
                         'Authorization': 'Basic YWRtaW46eWNoYXRjbGF3MTIz'
                     }
                 });
+                
+                console.log('📡 Resposta status:', response.status);
+                
                 const data = await response.json();
+                console.log('📦 Dados status:', data);
                 
                 const statusDiv = document.getElementById('whatsapp-status');
                 if (data.connectionStatus === 'connected') {
+                    console.log('✅ Status: connected');
                     statusDiv.innerHTML = 
                         '<div class="status">' +
                         '<div class="status-dot online"></div>' +
@@ -203,6 +222,7 @@ router.get('/', (req, res) => {
                         '</div>'
                     ;
                 } else if (data.connectionStatus === 'qr_ready') {
+                    console.log('📱 Status: qr_ready');
                     statusDiv.innerHTML = 
                         '<div class="status">' +
                         '<div class="status-dot restarting"></div>' +
@@ -210,6 +230,7 @@ router.get('/', (req, res) => {
                         '</div>'
                     ;
                 } else if (data.connectionStatus === 'reconnecting') {
+                    console.log('🔄 Status: reconnecting');
                     statusDiv.innerHTML = 
                         '<div class="status">' +
                         '<div class="status-dot restarting"></div>' +
@@ -217,6 +238,7 @@ router.get('/', (req, res) => {
                         '</div>'
                     ;
                 } else {
+                    console.log('❌ Status: disconnected');
                     statusDiv.innerHTML = 
                         '<div class="status">' +
                         '<div class="status-dot offline"></div>' +
@@ -225,16 +247,20 @@ router.get('/', (req, res) => {
                     ;
                 }
             } catch (error) {
-                console.error('Erro ao verificar status:', error);
-                document.getElementById('whatsapp-status').innerHTML = '<span style="color: #ff6b6b;">❌ Erro ao verificar status</span>';
+                console.error('❌ Erro ao verificar status:', error);
+                document.getElementById('whatsapp-status').innerHTML = '<span style="color: #ff6b6b;">❌ Erro ao verificar status: ' + error.message + '</span>';
             }
         }
+        
+        console.log('🚀 Dashboard carregado, iniciando funções...');
         
         setInterval(loadData, 30000);
         setInterval(checkWhatsAppStatus, 10000);
         
         loadData();
         checkWhatsAppStatus();
+        
+        console.log('✅ Dashboard inicializado!');
     </script>
 </body>
 </html>
