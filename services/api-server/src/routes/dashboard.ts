@@ -218,7 +218,7 @@ router.get('/services-health', async (req, res) => {
 router.get('/devices', async (req, res) => {
   try {
     // Get devices from database
-    const dbRes = await fetch('http://localhost:3000/devices');
+    const dbRes = await fetch('http://localhost:3000/api/devices');
     const dbData = await dbRes.json() as any;
     // Get connected devices from WebSocket server
     let wsDevices: any[] = [];
