@@ -46,7 +46,26 @@ router.get('/', (req, res) => {
         .refresh-btn { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 10px 0; }
         .refresh-btn:hover { background: #5a67d8; }
         .whatsapp-status { text-align: center; padding: 20px; }
-        .qr-code { background: white; padding: 20px; border-radius: 10px; margin: 20px 0; }
+        .qr-code {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 20px 0;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-height: 400px;
+            overflow: auto;
+        }
+        
+        .qr-code pre {
+            font-size: 6px !important;
+            line-height: 1.2 !important;
+            margin: 0 !important;
+            white-space: pre !important;
+            overflow: auto !important;
+            max-height: 350px !important;
+        }
     </style>
 </head>
 <body>
