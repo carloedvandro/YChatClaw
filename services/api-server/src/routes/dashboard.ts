@@ -157,20 +157,26 @@ router.get('/', (req, res) => {
 
         async function loadWhatsAppQR() {
             try {
-                const response = await fetch('/dashboard/whatsapp-qr');
-                const data = await response.json();
+                // Gerar QR Code
+                const generateResponse = await fetch('http://whatsapp-gateway:3003/generate-qr', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const generateData = await generateResponse.json();
                 
-                if (data.qr) {
-                    document.getElementById('qr-code').innerHTML = '<pre style="font-size: 8px; line-height: 1;">' + data.qr + '</pre>';
+                if (generateData.qr) {
+                    document.getElementById('qr-code').innerHTML = '<pre style="font-size: 8px; line-height: 1;">' + generateData.qr + '</pre>';
                     document.getElementById('qr-code').style.display = 'block';
                     alert('📱 QR Code gerado! Escaneie com WhatsApp.');
                 } else {
-                    document.getElementById('qr-code').innerHTML = '<p>' + data.message + '</p>';
+                    document.getElementById('qr-code').innerHTML = '<p>' + generateData.message + '</p>';
                     document.getElementById('qr-code').style.display = 'block';
                 }
             } catch (error) {
-                console.error('Erro ao carregar QR Code:', error);
-                document.getElementById('qr-code').innerHTML = '<p style="color: #ff6b6b;">❌ Erro ao carregar QR Code</p>';
+                console.error('Erro ao gerar QR Code:', error);
+                document.getElementById('qr-code').innerHTML = '<p style="color: #ff6b6b;">❌ Erro ao gerar QR Code</p>';
                 document.getElementById('qr-code').style.display = 'block';
             }
         }
