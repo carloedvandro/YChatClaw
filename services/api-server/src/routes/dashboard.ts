@@ -15,6 +15,12 @@ router.use('/', (req, res, next) => {
 
 // Página principal do Dashboard
 router.get('/', (req, res) => {
+  // Headers para evitar cache
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
   res.send(`
 <!DOCTYPE html>
 <html lang="pt-BR">
