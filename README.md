@@ -117,10 +117,20 @@ ollama pull llava:13b
 
 ## Conexão dos Dispositivos Android
 
-1. Instale o APK do agente Android nos dispositivos
-2. Configure o servidor WebSocket no app
-3. O dispositivo receberá um UUID único
-4. Gerencie os dispositivos via API ou comandos de chat
+### Como gerar o APK
+
+1. Abra o **Android Studio**
+2. Importe a pasta `android-agent/`
+3. Vá em **Build > Build Bundle(s) / APK(s) > Build APK(s)**
+4. O APK fica em `android-agent/app/build/outputs/apk/debug/app-debug.apk`
+
+### Como conectar um dispositivo
+
+1. Instale o APK no dispositivo Android (minSdk 24 = Android 7.0+)
+2. Abra o app e configure a URL do servidor: `ws://SEU_SERVIDOR:3001`
+3. Clique em **Iniciar** — o dispositivo se registra automaticamente com UUID único
+4. O dispositivo aparece no Dashboard na seção "Controle de Dispositivos"
+5. Envie comandos pelo Dashboard ou via WhatsApp/AI
 
 ### Comandos de Dispositivo
 
@@ -162,13 +172,27 @@ ollama pull llava:13b
 
 Acesse o dashboard em `http://SEU_SERVIDOR:3000/dashboard` para:
 
-- Monitorar status de todos os serviços
-- Gerar e escanear QR Code do WhatsApp
-- Controlar automação web (criar sessões, navegar, clicar, screenshot)
-- Visualizar dispositivos conectados
-- Enviar mensagens e ver logs
+- **Status dos Serviços** — monitorar todos os 5 serviços em tempo real
+- **WhatsApp Gateway** — gerar QR Code, conectar/desconectar, enviar mensagens
+- **AI Agent** — testar comandos para a IA, ver modelos Ollama disponíveis
+- **Controle de Dispositivos** — listar dispositivos Android, enviar comandos (abrir URL, app, screenshot)
+- **Web Automation** — criar sessões de navegador, navegar, clicar, digitar, fazer login, screenshot
+- **Logs do Sistema** — acompanhar eventos em tempo real
 
-**Credenciais padrão**: `admin` / `ychatclaw`
+**Credenciais padrão**: `admin` / `ychatclaw123`
+
+### Comandos via WhatsApp / AI
+
+O agente IA reconhece linguagem natural em português. Exemplos:
+
+| Mensagem | Ação |
+|----------|------|
+| "Abre o site https://google.com e tira um print" | Abre navegador + screenshot |
+| "Rola a página e clica em Login" | Scroll + click por texto |
+| "Abre o YouTube no celular" | Envia `open_app` para dispositivo Android |
+| "Abre https://site.com no dispositivo" | Envia `open_url` para dispositivo |
+| "Quais dispositivos estão conectados?" | Lista dispositivos |
+| "Manda oi pro 5511999999999" | Envia mensagem WhatsApp |
 
 ## Configuração WhatsApp
 
