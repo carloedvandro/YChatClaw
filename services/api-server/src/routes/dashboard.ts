@@ -382,12 +382,35 @@ router.get('/', (req, res) => {
                 if (generateData.qr) {
                     console.log('✅ QR Code recebido, abrindo modal...');
                     
-                    // Abrir modal com QR Code
-                    document.getElementById('modalQrCode').textContent = generateData.qr;
-                    document.getElementById('qrModal').style.display = 'block';
+                    // Verificar se é imagem base64 ou texto
+                    const isImage = generateData.qr.startsWith('data:image');
                     
-                    // Também exibir no dashboard
-                    document.getElementById('qr-code').innerHTML = '<pre style="font-size: 6px; line-height: 1.2;">' + generateData.qr + '</pre>';
+                    if (isImage) {
+                        // Exibir como imagem no modal
+                        document.getElementById('modalQrCode').style.display = 'none';
+                        var modalBody = document.getElementById('modalQrCode').parentElement;
+                        var existingImg = modalBody.querySelector('img');
+                        if (existingImg) existingImg.remove();
+                        var img = document.createElement('img');
+                        img.src = generateData.qr;
+                        img.style.width = '100%';
+                        img.style.maxWidth = '300px';
+                        img.style.height = 'auto';
+                        img.style.display = 'block';
+                        img.style.margin = '0 auto';
+                        img.style.imageRendering = 'pixelated';
+                        modalBody.appendChild(img);
+                        
+                        // Também no dashboard
+                        document.getElementById('qr-code').innerHTML = '<img src="' + generateData.qr + '" style="width:200px;height:auto;display:block;margin:0 auto;image-rendering:pixelated;">';
+                    } else {
+                        // Fallback para texto
+                        document.getElementById('modalQrCode').textContent = generateData.qr;
+                        document.getElementById('modalQrCode').style.display = 'block';
+                        document.getElementById('qr-code').innerHTML = '<pre style="font-size:6px;line-height:1.2;">' + generateData.qr + '</pre>';
+                    }
+                    
+                    document.getElementById('qrModal').style.display = 'block';
                     document.getElementById('qr-code').style.display = 'block';
                     
                     // Atualizar status após gerar QR Code

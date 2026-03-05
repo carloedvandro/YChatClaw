@@ -2,6 +2,7 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import Redis from 'ioredis';
+import QRCode from 'qrcode';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -20,42 +21,32 @@ let connectionStatus: string = 'disconnected';
 let qrCode: string | null = null;
 let qrCodeTimestamp: string | null = null;
 
-// Simular QR Code para teste - usando apenas caracteres ASCII
-function generateMockQRCode() {
-  const mockQR = `
-##########################################
-##########################################
-#### ###       ##  #####  ####### ########
-#### #   # ####### ####### #   # ########
-#### ### # ##  #####  ##### ### #########
-##### ##  ##  ## ### ##### #   # ########
-#### ## # # # ## # #### # # # ##########
-#### # ## # ####### ####### ## #########
-#### ## ####### ### ### ### #### ########
-#### ## # # ## ## ## # ## # ## #########
-#### ##   # ## ### ## # ### #### ########
-#### #### # ## ### ## ##### # ##########
-#### ## ### ## ### # ###### ## #########
-#### ####   ## ### ## ##### ### ########
-#### ###  # ## ### #  ##### ## #########
-#### ####   ## ### ## ##### ### ########
-#### ### ## ## ### ## ##### ## #########
-#### ####   ## ### ## ##### ### ########
-#### ### ## ## ### ## ##### ## #########
-##########################################
-##########################################
-  `;
+// Gerar QR Code como imagem PNG base64
+async function generateMockQRCode(): Promise<string> {
+  // Simular dados de conexão WhatsApp (formato real usado pelo WhatsApp Web)
+  const mockWhatsAppData = '2@YChatClaw' + Date.now() + ',AKx8e3FQd2V0cXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOU,tGBbW9uZXk=';
   
-  qrCode = mockQR;
+  // Gerar imagem PNG como data URL base64
+  const qrDataUrl = await QRCode.toDataURL(mockWhatsAppData, {
+    width: 300,
+    margin: 2,
+    color: {
+      dark: '#000000',
+      light: '#FFFFFF'
+    },
+    errorCorrectionLevel: 'M'
+  });
+  
+  qrCode = qrDataUrl;
   qrCodeTimestamp = new Date().toISOString();
   connectionStatus = 'qr_ready';
   
   // Salvar em arquivo
   const qrFile = path.join(sessionPath, 'qrcode.txt');
-  fs.writeFileSync(qrFile, mockQR);
+  fs.writeFileSync(qrFile, qrDataUrl);
   
-  console.log('📱 QR Code simulado gerado!');
-  return mockQR;
+  console.log('📱 QR Code gerado como imagem PNG base64!');
+  return qrDataUrl;
 }
 
 // Limpar QR Code
@@ -130,9 +121,9 @@ app.get('/status', (req, res) => {
 });
 
 // Endpoint para gerar QR Code
-app.post('/generate-qr', (req, res) => {
+app.post('/generate-qr', async (req, res) => {
   try {
-    const qr = generateMockQRCode();
+    const qr = await generateMockQRCode();
     simulateConnection();
     
     res.json({
