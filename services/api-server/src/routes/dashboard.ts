@@ -157,8 +157,8 @@ router.get('/', (req, res) => {
 
         async function loadWhatsAppQR() {
             try {
-                // Gerar QR Code
-                const generateResponse = await fetch('http://whatsapp-gateway:3003/generate-qr', {
+                // Gerar QR Code via API do dashboard
+                const generateResponse = await fetch('/dashboard/whatsapp-generate-qr', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -170,6 +170,9 @@ router.get('/', (req, res) => {
                     document.getElementById('qr-code').innerHTML = '<pre style="font-size: 8px; line-height: 1;">' + generateData.qr + '</pre>';
                     document.getElementById('qr-code').style.display = 'block';
                     alert('📱 QR Code gerado! Escaneie com WhatsApp.');
+                    
+                    // Atualizar status após gerar QR Code
+                    setTimeout(checkWhatsAppStatus, 2000);
                 } else {
                     document.getElementById('qr-code').innerHTML = '<p>' + generateData.message + '</p>';
                     document.getElementById('qr-code').style.display = 'block';
@@ -244,6 +247,28 @@ router.get('/whatsapp-qr', async (req, res) => {
     res.json({ 
       qr: null,
       message: 'Erro ao buscar QR Code',
+      error: (error as Error).message,
+      status: 'error'
+    });
+  }
+});
+
+// Rota para gerar QR Code do WhatsApp
+router.post('/whatsapp-generate-qr', async (req, res) => {
+  try {
+    const response = await fetch('http://whatsapp-gateway:3003/generate-qr', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    const data = await response.json();
+    
+    res.json(data);
+  } catch (error) {
+    res.json({ 
+      qr: null,
+      message: 'Erro ao gerar QR Code',
       error: (error as Error).message,
       status: 'error'
     });
