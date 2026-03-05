@@ -266,26 +266,70 @@ function detectIntent(message: string, userId: string): { actions: ParsedAction[
   // Detectar URL na mensagem
   const urlMatch = message.match(/https?:\/\/[^\s]+/i);
 
-  // Abrir site + print
+  // Abrir site
   if (urlMatch && /abr|entre|acesse|naveg|vai|ir|site/i.test(msg)) {
     actions.push({ action: 'web_open_browser', params: { url: urlMatch[0] } });
     fallbackResponse = 'Pronto! Abri o site pra você.';
   }
 
+  // Scroll / rolar página
+  if (/rola|scroll|desç|desce|descer|baixo|para baixo/i.test(msg)) {
+    const amount = /muito|bastante|todo/i.test(msg) ? 2000 : 1000;
+    actions.push({ action: 'web_scroll', params: { sessionId: '__auto__', direction: 'down', amount } });
+    fallbackResponse = 'Rolei a página.';
+  }
+  if (/suba|subir|para cima|topo/i.test(msg)) {
+    actions.push({ action: 'web_scroll', params: { sessionId: '__auto__', direction: 'up', amount: 1000 } });
+    fallbackResponse = 'Rolei a página para cima.';
+  }
+
+  // Clicar em texto específico — extrair texto entre aspas ou após "clic" + "em/na/no"
+  const clickTextQuoted = message.match(/["\u201c\u201d]([^"\u201c\u201d]+)["\u201c\u201d]/)
+    || message.match(/\u201c([^\u201d]+)\u201d/)
+    || message.match(/"([^"]+)"/);
+  const wantsClick = /clic|click|aperte|pressione|entr[ea].*(?:em|na|no)|acess/i.test(msg);
+  
+  if (wantsClick && clickTextQuoted) {
+    actions.push({ action: 'web_click_text', params: { sessionId: '__auto__', text: clickTextQuoted[1] } });
+    fallbackResponse = `Cliquei em "${clickTextQuoted[1]}".`;
+  } else if (wantsClick) {
+    // Tentar extrair texto após "clicar em/na/no" sem aspas
+    const clickAfter = message.match(/clic\w*\s+(?:em|na|no|nessa?|nesse?)\s+(?:(?:a |o |na )?palavra\s+)?(.+?)(?:\s+e\s+|\s*$)/i);
+    if (clickAfter) {
+      const clickText = clickAfter[1].replace(/["\u201c\u201d]/g, '').trim();
+      if (clickText.length > 1 && clickText.length < 100) {
+        actions.push({ action: 'web_click_text', params: { sessionId: '__auto__', text: clickText } });
+        fallbackResponse = `Cliquei em "${clickText}".`;
+      }
+    }
+  }
+
+  // Encontrar texto na página (scroll até encontrar) — "encontr" + texto entre aspas
+  if (/encontr|procur|ach[ae]|busc/i.test(msg) && clickTextQuoted) {
+    // Se não tem scroll ainda, adicionar scroll para procurar
+    if (!actions.some(a => a.action === 'web_scroll')) {
+      // Scroll bastante para encontrar o elemento
+      actions.unshift({ action: 'web_scroll', params: { sessionId: '__auto__', direction: 'down', amount: 1500 } });
+    }
+  }
+
   // Screenshot / print
-  if (/print|screenshot|captur|tira.*tela|foto.*site|tir.*print/i.test(msg)) {
+  if (/print|screenshot|screen shot|captur|tira.*tela|foto.*site|tir.*print|mostr.*imagem|traz.*imagem|me mostr|me envi/i.test(msg)) {
     if (!actions.some(a => a.action === 'web_screenshot')) {
       actions.push({ action: 'web_screenshot', params: { sessionId: '__auto__' } });
-      fallbackResponse = fallbackResponse ? fallbackResponse.replace('!', ' e tirei um print!') : '📸 Tirei um print pra você!';
+      if (fallbackResponse) {
+        fallbackResponse += '\n📸 Tirei um print pra você!';
+      } else {
+        fallbackResponse = '📸 Tirei um print pra você!';
+      }
     }
   }
 
   // Enviar mensagem WhatsApp
   const phoneMatch = message.match(/\b(\d{10,13})\b/);
   if (phoneMatch && /mand|envi|envia|fal[ae]|dig[ao]|mensag/i.test(msg)) {
-    // Extrair a mensagem a enviar - pegar texto entre aspas, ou depois de padrões como "dizendo", "falando", "com a mensagem"
     let msgToSend = '';
-    const quotedMatch = message.match(/[""]([^""]+)[""]/);
+    const quotedMatch = message.match(/["\u201c]([^"\u201d]+)["\u201d]/);
     const afterPatternMatch = message.match(/(?:dizendo|falando|com (?:a )?mensagem|(?:o )?texto|(?:o )?conteúdo)\s*[:\-]?\s*(.+)/i);
     
     if (quotedMatch) {
@@ -293,7 +337,6 @@ function detectIntent(message: string, userId: string): { actions: ParsedAction[
     } else if (afterPatternMatch) {
       msgToSend = afterPatternMatch[1].trim();
     } else {
-      // Tentar pegar o texto após o número de telefone
       const afterPhone = message.split(phoneMatch[0])[1];
       if (afterPhone) {
         msgToSend = afterPhone.replace(/^[\s,.:]+/, '').trim();
@@ -353,10 +396,18 @@ function sanitizeResponse(response: string): string {
   if (!response) return '';
   
   let clean = response
-    // Remover blocos JSON e código
+    // Remover blocos de código
     .replace(/```[\s\S]*?```/g, '')
+    // Remover qualquer JSON completo ou fragmentos
     .replace(/\{[\s\S]*?\}/g, '')
     .replace(/\[[\s\S]*?\]/g, '')
+    // Remover fragmentos JSON parciais como },}], "response":"..."
+    .replace(/[{}\[\]],?/g, '')
+    .replace(/"response"\s*:\s*"[^"]*"/g, '')
+    .replace(/"action"\s*:\s*"[^"]*"/g, '')
+    .replace(/"params"\s*:\s*/g, '')
+    .replace(/"actions"\s*:\s*/g, '')
+    .replace(/"[a-zA-Z_]+"\s*:/g, '')
     // Remover nomes de ferramentas
     .replace(/\bweb_\w+/g, '')
     .replace(/\blist_\w+/g, '')
@@ -367,10 +418,17 @@ function sanitizeResponse(response: string): string {
     .replace(/Ação:.*$/gm, '')
     .replace(/Parâmetros:.*$/gm, '')
     .replace(/<[^>]+>/g, '')
+    // Remover aspas soltas e pontuação JSON residual
+    .replace(/"+/g, '')
+    .replace(/^[\s,.:;]+/gm, '')
     // Limpar espaços extras
     .replace(/\n{3,}/g, '\n\n')
     .replace(/\s{3,}/g, ' ')
     .trim();
+
+  // Se após sanitizar sobrou só lixo (< 3 chars úteis), retornar vazio
+  const useful = clean.replace(/[^a-zA-ZÀ-ú0-9]/g, '');
+  if (useful.length < 3) return '';
 
   return clean;
 }

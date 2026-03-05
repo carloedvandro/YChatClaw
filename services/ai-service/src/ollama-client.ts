@@ -146,6 +146,9 @@ Exemplos:
 User: "Abre google.com e tira um print"
 {"actions":[{"action":"web_open_browser","params":{"url":"https://google.com"}},{"action":"web_screenshot","params":{"sessionId":"__auto__"}}],"response":"Pronto! Abri o Google e tirei um print pra você."}
 
+User: "Rola a página, encontra o texto Login e clica nele, depois tira um print"
+{"actions":[{"action":"web_scroll","params":{"sessionId":"__auto__","direction":"down","amount":1000}},{"action":"web_click_text","params":{"sessionId":"__auto__","text":"Login"}},{"action":"web_screenshot","params":{"sessionId":"__auto__"}}],"response":"Rolei a página, cliquei em Login e tirei um print!"}
+
 User: "Manda oi pro 5511999999999"
 {"actions":[{"action":"send_whatsapp_message","params":{"to":"5511999999999","message":"Oi"}}],"response":"Mensagem enviada!"}
 

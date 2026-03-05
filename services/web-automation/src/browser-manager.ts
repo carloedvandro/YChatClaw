@@ -424,14 +424,70 @@ export class BrowserManager {
 
     try {
       const tagName = tag || '*';
-      const elements = await session.page.$x(
-        `//${tagName}[contains(text(), '${text.replace(/'/g, "\\'")}')]`
+      const escapedText = text.replace(/'/g, "\\'");
+
+      // Tentar XPath exato primeiro, depois parcial, depois case-insensitive via JS
+      let elements = await session.page.$x(
+        `//${tagName}[contains(text(), '${escapedText}')]`
       );
 
+      // Fallback: buscar via JavaScript com case-insensitive e partial match
       if (elements.length === 0) {
-        return { success: false, error: `Elemento com texto "${text}" não encontrado` };
+        const found = await session.page.evaluate((searchText: string, tagFilter: string) => {
+          const lowerSearch = searchText.toLowerCase();
+          const allElements = document.querySelectorAll(tagFilter === '*' ? 'a, button, span, div, p, li, h1, h2, h3, h4, label' : tagFilter);
+          for (const el of allElements) {
+            const elText = (el as HTMLElement).innerText || el.textContent || '';
+            if (elText.toLowerCase().includes(lowerSearch)) {
+              (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+              return true;
+            }
+          }
+          return false;
+        }, text, tagName);
+
+        if (found) {
+          // Aguardar scroll terminar
+          await new Promise(resolve => setTimeout(resolve, 500));
+          // Re-buscar com XPath após scroll
+          elements = await session.page.$x(
+            `//${tagName}[contains(text(), '${escapedText}')]`
+          );
+          // Se ainda não achou, buscar via evaluate + click
+          if (elements.length === 0) {
+            const clicked = await session.page.evaluate((searchText: string, tagFilter: string) => {
+              const lowerSearch = searchText.toLowerCase();
+              const allElements = document.querySelectorAll(tagFilter === '*' ? 'a, button, span, div, p, li, h1, h2, h3, h4, label' : tagFilter);
+              for (const el of allElements) {
+                const elText = (el as HTMLElement).innerText || el.textContent || '';
+                if (elText.toLowerCase().includes(lowerSearch)) {
+                  (el as HTMLElement).click();
+                  return true;
+                }
+              }
+              return false;
+            }, text, tagName);
+
+            if (clicked) {
+              session.lastActivity = new Date();
+              await this.waitForNavigation(session.page);
+              return {
+                success: true,
+                data: { text, url: session.page.url(), title: await session.page.title() },
+              };
+            }
+            return { success: false, error: `Elemento com texto "${text}" não encontrado` };
+          }
+        } else {
+          return { success: false, error: `Elemento com texto "${text}" não encontrado` };
+        }
       }
 
+      // Scroll into view e clicar
+      await (elements[0] as ElementHandle<Element>).evaluate((el: Element) => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      await new Promise(resolve => setTimeout(resolve, 300));
       await (elements[0] as ElementHandle<Element>).click();
       session.lastActivity = new Date();
       await this.waitForNavigation(session.page);
