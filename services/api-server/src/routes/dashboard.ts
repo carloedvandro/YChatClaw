@@ -27,7 +27,7 @@ router.get('/', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YChatClaw Dashboard</title>
+    <title>🤖 YChatClaw Dashboard</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; }
@@ -231,10 +231,25 @@ router.get('/', (req, res) => {
                 console.log('📦 Dados recebidos:', generateData);
                 
                 if (generateData.qr) {
-                    console.log('✅ QR Code recebido, exibindo...');
-                    document.getElementById('qr-code').innerHTML = '<pre style="font-size: 8px; line-height: 1;">' + generateData.qr + '</pre>';
+                    console.log('✅ QR Code recebido, abrindo janela...');
+                    
+                    // Abrir QR Code em nova janela
+                    const qrWindow = window.open('/dashboard/qr-view', '_blank', 'width=400,height=500,scrollbars=yes,resizable=yes');
+                    
+                    // Enviar QR Code para a nova janela
+                    setTimeout(() => {
+                        if (qrWindow && !qrWindow.closed) {
+                            qrWindow.postMessage({
+                                type: 'qr-code',
+                                data: generateData.qr
+                            }, '*');
+                        }
+                    }, 500);
+                    
+                    // Também exibir no dashboard
+                    document.getElementById('qr-code').innerHTML = '<pre style="font-size: 6px; line-height: 1.2;">' + generateData.qr + '</pre>';
                     document.getElementById('qr-code').style.display = 'block';
-                    alert('📱 QR Code gerado! Escaneie com WhatsApp.');
+                    alert('📱 QR Code aberto em nova janela! Escaneie com WhatsApp.');
                     
                     // Atualizar status após gerar QR Code
                     setTimeout(checkWhatsAppStatus, 2000);
@@ -380,4 +395,164 @@ router.get('/whatsapp-status', async (req, res) => {
   }
 });
 
-export { router };
+// Rota para visualização do QR Code em janela separada
+router.get('/qr-view', (req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.send(`
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📱 QR Code - YChatClaw</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 350px;
+            width: 100%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .qr-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 2px solid #e9ecef;
+            max-height: 400px;
+            overflow: auto;
+        }
+        .qr-container pre {
+            font-size: 4px !important;
+            line-height: 1.1 !important;
+            margin: 0 !important;
+            white-space: pre !important;
+            font-family: 'Courier New', monospace !important;
+            background: transparent !important;
+            color: #000 !important;
+        }
+        .instructions {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #2196F3;
+        }
+        .instructions h3 {
+            margin: 0 0 10px 0;
+            color: #1976D2;
+            font-size: 16px;
+        }
+        .instructions p {
+            margin: 5px 0;
+            color: #555;
+            font-size: 14px;
+        }
+        .refresh-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 10px;
+            transition: background 0.3s;
+        }
+        .refresh-btn:hover {
+            background: #45a049;
+        }
+        .status {
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.waiting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status.ready {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 QR Code WhatsApp</h1>
+        
+        <div class="status waiting" id="status">
+            ⏳ Aguardando QR Code...
+        </div>
+        
+        <div class="qr-container" id="qr-container">
+            <pre id="qr-code">Carregando QR Code...</pre>
+        </div>
+        
+        <div class="instructions">
+            <h3>📋 Como escanear:</h3>
+            <p>1. Abra o WhatsApp no seu celular</p>
+            <p>2. Vá em "Configurações" > "Dispositivos conectados"</p>
+            <p>3. Toque em "Conectar um novo dispositivo"</p>
+            <p>4. Aponte a câmera para este QR Code</p>
+        </div>
+        
+        <button class="refresh-btn" onclick="window.location.reload()">
+            🔄 Atualizar QR Code
+        </button>
+        
+        <button class="refresh-btn" onclick="window.close()">
+            ❌ Fechar Janela
+        </button>
+    </div>
+
+    <script>
+        // Escutar mensagens da janela principal
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'qr-code') {
+                const qrCode = event.data.data;
+                document.getElementById('qr-code').textContent = qrCode;
+                document.getElementById('status').innerHTML = '✅ QR Code pronto para escanear!';
+                document.getElementById('status').className = 'status ready';
+            }
+        });
+        
+        // Auto-fechar após 2 minutos
+        setTimeout(() => {
+            if (confirm('⏰ O QR Code expirou! Deseja gerar um novo?')) {
+                window.location.reload();
+            } else {
+                window.close();
+            }
+        }, 120000);
+    </script>
+</body>
+</html>
+  `);
+});
+
+export { router as dashboardRoutes };
