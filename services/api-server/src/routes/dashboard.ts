@@ -181,11 +181,25 @@ router.get('/', (req, res) => {
                 const data = await response.json();
                 
                 const statusDiv = document.getElementById('whatsapp-status');
-                if (data.status === 'connected') {
+                if (data.connectionStatus === 'connected') {
                     statusDiv.innerHTML = 
                         '<div class="status">' +
                         '<div class="status-dot online"></div>' +
                         '<span>✅ WhatsApp Conectado</span>' +
+                        '</div>'
+                    ;
+                } else if (data.connectionStatus === 'qr_ready') {
+                    statusDiv.innerHTML = 
+                        '<div class="status">' +
+                        '<div class="status-dot restarting"></div>' +
+                        '<span>📱 QR Code Pronto</span>' +
+                        '</div>'
+                    ;
+                } else if (data.connectionStatus === 'reconnecting') {
+                    statusDiv.innerHTML = 
+                        '<div class="status">' +
+                        '<div class="status-dot restarting"></div>' +
+                        '<span>🔄 Reconectando...</span>' +
                         '</div>'
                     ;
                 } else {
@@ -216,24 +230,10 @@ router.get('/', (req, res) => {
 // Rota para obter QR Code do WhatsApp
 router.get('/whatsapp-qr', async (req, res) => {
   try {
-    const logs = await fetch('http://whatsapp-gateway:3003/logs');
-    const logsText = await logs.text();
+    const response = await fetch('http://whatsapp-gateway:3003/qrcode');
+    const data = await response.json();
     
-    const qrMatch = logsText.match(/█[^█]*█/s);
-    
-    if (qrMatch) {
-      res.json({ 
-        qr: qrMatch[0],
-        timestamp: new Date().toISOString(),
-        status: 'found'
-      });
-    } else {
-      res.json({ 
-        qr: null,
-        message: 'QR Code não encontrado. Verifique se o WhatsApp está aguardando conexão.',
-        status: 'not_found'
-      });
-    }
+    res.json(data);
   } catch (error) {
     res.json({ 
       qr: null,
@@ -247,17 +247,16 @@ router.get('/whatsapp-qr', async (req, res) => {
 // Rota para status do WhatsApp
 router.get('/whatsapp-status', async (req, res) => {
   try {
-    const response = await fetch('http://whatsapp-gateway:3003/health');
+    const response = await fetch('http://whatsapp-gateway:3003/status');
     const status = await response.json();
     
-    res.json({
-      status: 'connected',
-      timestamp: new Date().toISOString(),
-      gateway: status
-    });
+    res.json(status);
   } catch (error) {
     res.json({
-      status: 'disconnected',
+      connectionStatus: 'disconnected',
+      qrAvailable: false,
+      qrTimestamp: null,
+      timestamp: new Date().toISOString(),
       message: 'WhatsApp Gateway não está respondendo',
       error: (error as Error).message
     });
