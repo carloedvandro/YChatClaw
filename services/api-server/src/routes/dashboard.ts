@@ -3,6 +3,16 @@ import axios from 'axios';
 
 const router = express.Router();
 
+// Middleware de autenticação simples
+router.use('/', (req, res, next) => {
+  const auth = req.headers.authorization;
+  if (!auth || auth !== 'Basic YWRtaW46eWNoYXRjbGF3MTIz') {
+    res.set('WWW-Authenticate', 'Basic realm="YChatClaw Dashboard"');
+    return res.status(401).send('Acesso negado');
+  }
+  next();
+});
+
 // Página principal do Dashboard
 router.get('/', (req, res) => {
   res.send(`
