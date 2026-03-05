@@ -131,7 +131,23 @@ async function initWhatsAppClient(): Promise<void> {
           });
           const aiData = await aiResponse.json() as any;
           
-          if (aiData.response) {
+          // Enviar screenshot como imagem se disponível
+          if (aiData.screenshotData) {
+            try {
+              const { MessageMedia } = require('whatsapp-web.js');
+              // screenshotData é "data:image/png;base64,..."
+              const base64Data = aiData.screenshotData.replace(/^data:image\/\w+;base64,/, '');
+              const media = new MessageMedia('image/png', base64Data, 'screenshot.png');
+              await msg.reply(media, undefined, { caption: aiData.response || '📸 Screenshot' });
+              console.log(`📸 Screenshot enviado para ${from}`);
+            } catch (imgErr) {
+              console.error('⚠️ Erro ao enviar imagem:', (imgErr as Error).message);
+              // Fallback: enviar só o texto
+              if (aiData.response) {
+                await msg.reply(aiData.response);
+              }
+            }
+          } else if (aiData.response) {
             await msg.reply(aiData.response);
             console.log(`🤖 Resposta AI enviada para ${from}`);
           }
