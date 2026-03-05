@@ -20,7 +20,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware de segurança
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"]
+    }
+  }
+}));
 app.use(cors({
   origin: ['http://localhost:3000', 'http://167.86.84.197:3000'],
   credentials: true
