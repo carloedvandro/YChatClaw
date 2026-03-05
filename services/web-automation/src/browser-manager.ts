@@ -435,11 +435,12 @@ export class BrowserManager {
       if (elements.length === 0) {
         const found = await session.page.evaluate((searchText: string, tagFilter: string) => {
           const lowerSearch = searchText.toLowerCase();
-          const allElements = document.querySelectorAll(tagFilter === '*' ? 'a, button, span, div, p, li, h1, h2, h3, h4, label' : tagFilter);
-          for (const el of allElements) {
-            const elText = (el as HTMLElement).innerText || el.textContent || '';
+          const allElements = Array.from(document.querySelectorAll(tagFilter === '*' ? 'a, button, span, div, p, li, h1, h2, h3, h4, label' : tagFilter));
+          for (let i = 0; i < allElements.length; i++) {
+            const el = allElements[i] as HTMLElement;
+            const elText = el.innerText || el.textContent || '';
             if (elText.toLowerCase().includes(lowerSearch)) {
-              (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
               return true;
             }
           }
@@ -457,11 +458,12 @@ export class BrowserManager {
           if (elements.length === 0) {
             const clicked = await session.page.evaluate((searchText: string, tagFilter: string) => {
               const lowerSearch = searchText.toLowerCase();
-              const allElements = document.querySelectorAll(tagFilter === '*' ? 'a, button, span, div, p, li, h1, h2, h3, h4, label' : tagFilter);
-              for (const el of allElements) {
-                const elText = (el as HTMLElement).innerText || el.textContent || '';
+              const allElements = Array.from(document.querySelectorAll(tagFilter === '*' ? 'a, button, span, div, p, li, h1, h2, h3, h4, label' : tagFilter));
+              for (let i = 0; i < allElements.length; i++) {
+                const el = allElements[i] as HTMLElement;
+                const elText = el.innerText || el.textContent || '';
                 if (elText.toLowerCase().includes(lowerSearch)) {
-                  (el as HTMLElement).click();
+                  el.click();
                   return true;
                 }
               }
