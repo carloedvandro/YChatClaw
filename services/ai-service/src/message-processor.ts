@@ -25,6 +25,8 @@ interface ParsedAction {
 
 // Sessões de browser por usuário
 const userBrowserSessions: Map<string, string> = new Map();
+// Último URL aberto por usuário (para retry de screenshot)
+const userLastUrls: Map<string, string> = new Map();
 
 // Mutex para serializar chamadas ao Ollama (evitar flood)
 let ollamaLock: Promise<void> = Promise.resolve();
@@ -132,33 +134,97 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
     }
 
     // ===== GARANTIR SCREENSHOT =====
-    const wantsScreenshot = /print|screenshot|captur|tela|foto.*site|imagem.*site|tir.*print/i.test(message);
+    const wantsScreenshot = /print|screenshot|captur|tela|foto.*site|imagem.*site|tir.*print|mand.*print|envi.*print|mand.*screenshot/i.test(message);
     const hasScreenshotAction = actions.some(a => a.action === 'web_screenshot');
     const hasOpenBrowser = actions.some(a => a.action === 'web_open_browser' || a.action === 'web_navigate');
     
-    if (wantsScreenshot && !hasScreenshotAction && (hasOpenBrowser || userBrowserSessions.has(userId))) {
-      actions.push({ action: 'web_screenshot', params: { sessionId: '__auto__' } });
-      console.log('📸 Auto-adicionado web_screenshot');
+    // Salvar URL se houver ação de abrir browser
+    const openAction = actions.find(a => (a.action === 'web_open_browser' || a.action === 'web_navigate') && a.params?.url);
+    if (openAction?.params?.url) {
+      userLastUrls.set(userId, openAction.params.url);
+    }
+
+    if (wantsScreenshot && !hasScreenshotAction) {
+      // Adicionar screenshot se: tem browser aberto, tem sessão cacheada, ou tem URL anterior
+      if (hasOpenBrowser || userBrowserSessions.has(userId) || userLastUrls.has(userId)) {
+        actions.push({ action: 'web_screenshot', params: { sessionId: '__auto__' } });
+        console.log('📸 Auto-adicionado web_screenshot');
+      }
     }
 
     // ===== EXECUTAR TOOLS =====
     const allToolResults: any[] = [];
     let lastSessionId: string | null = userBrowserSessions.get(userId) || null;
 
-    for (const actionItem of actions) {
-      const result = await executeToolAction(
+    for (let ai = 0; ai < actions.length; ai++) {
+      const actionItem = actions[ai];
+      let result = await executeToolAction(
         actionItem.action,
         actionItem.params || {},
         toolRegistry,
         toolContext,
         lastSessionId
       );
+
+      // ===== RETRY: screenshot com sessão morta =====
+      if (!result.success && actionItem.action === 'web_screenshot' && 
+          (result.error?.includes('não encontrada') || result.error?.includes('not found'))) {
+        console.log('🔄 Screenshot falhou (sessão morta). Tentando criar nova sessão...');
+        userBrowserSessions.delete(userId);
+        lastSessionId = null;
+
+        // Tentar encontrar a URL original para recriar a sessão
+        const urlAction = actions.find(a => 
+          (a.action === 'web_open_browser' || a.action === 'web_navigate') && a.params?.url
+        );
+        const retryUrl = urlAction?.params?.url || userLastUrls.get(userId) || 'about:blank';
+
+        const newSession = await executeToolAction(
+          'web_open_browser',
+          { url: retryUrl },
+          toolRegistry,
+          toolContext,
+          null
+        );
+
+        if (newSession.success && newSession.data?.sessionId) {
+          lastSessionId = newSession.data.sessionId;
+          userBrowserSessions.set(userId, lastSessionId!);
+          console.log(`🔄 Nova sessão criada: ${lastSessionId}. Retentando screenshot...`);
+          
+          // Aguardar página carregar
+          await new Promise(r => setTimeout(r, 2000));
+          
+          result = await executeToolAction(
+            'web_screenshot',
+            { sessionId: lastSessionId },
+            toolRegistry,
+            toolContext,
+            lastSessionId
+          );
+          console.log(`🔄 Screenshot retry: ${result.success ? 'sucesso' : 'erro'}`);
+        }
+      }
+
+      // Limpar sessão cacheada se qualquer ação web falhar com sessão não encontrada
+      if (!result.success && result.error?.includes('não encontrada') && actionItem.action.startsWith('web_')) {
+        userBrowserSessions.delete(userId);
+        lastSessionId = null;
+      }
+
       allToolResults.push(result);
 
       if (result.success && result.data?.sessionId) {
         lastSessionId = result.data.sessionId;
         userBrowserSessions.set(userId, lastSessionId!);
       }
+    }
+
+    // ===== SCREENSHOT DATA =====
+    const screenshotResult = allToolResults.find(r => r.success && r.data?.screenshot);
+    let screenshotData: string | null = null;
+    if (screenshotResult) {
+      screenshotData = screenshotResult.data.screenshot;
     }
 
     // ===== MONTAR RESPOSTA FINAL =====
@@ -173,12 +239,22 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
       }
     }
 
-    // ===== SCREENSHOT DATA =====
-    const screenshotResult = allToolResults.find(r => r.data?.screenshot);
-    let screenshotData: string | null = null;
-    if (screenshotResult) {
-      screenshotData = screenshotResult.data.screenshot;
-      if (!friendlyResponse.toLowerCase().includes('print') && !friendlyResponse.toLowerCase().includes('screenshot')) {
+    // Se o usuário pediu screenshot mas não conseguimos, informar honestamente
+    if (wantsScreenshot && !screenshotData) {
+      const screenshotFailed = allToolResults.some(r => !r.success && actions[allToolResults.indexOf(r)]?.action === 'web_screenshot');
+      if (screenshotFailed) {
+        friendlyResponse = friendlyResponse.replace(/tirei.*print.*você/gi, 'Tentei tirar o print mas houve um erro');
+        friendlyResponse = friendlyResponse.replace(/print.*capturado/gi, 'Não consegui capturar o print');
+        friendlyResponse = friendlyResponse.replace(/screenshot.*capturado/gi, 'Não consegui capturar o screenshot');
+        if (!/erro|não consegui|falh/i.test(friendlyResponse)) {
+          friendlyResponse += '\n⚠️ Não consegui tirar o screenshot. Tente novamente.';
+        }
+      }
+    }
+
+    // Se screenshot teve sucesso, garantir menção
+    if (screenshotData) {
+      if (!/print|screenshot|captur/i.test(friendlyResponse)) {
         friendlyResponse += '\n📸 Screenshot capturado!';
       }
     }
