@@ -18,7 +18,12 @@ interface SessionMessage {
   content: string;
 }
 
-// Armazenar sessões de browser ativas por usuário
+interface ParsedAction {
+  action: string;
+  params: Record<string, any>;
+}
+
+// Sessões de browser por usuário
 const userBrowserSessions: Map<string, string> = new Map();
 
 export async function processMessage(options: ProcessMessageOptions): Promise<any> {
@@ -40,7 +45,6 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
   }
 
   // Buscar ou criar sessão
-  const sessionKey = sessionId || `${channel}:${userId}`;
   let session = await prisma.session.findFirst({
     where: { userId: user.id, channelType: channel, channelId: channelId || '' },
     orderBy: { lastActivity: 'desc' },
@@ -58,22 +62,14 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
     });
   }
 
-  // Atualizar última atividade
   await prisma.session.update({
     where: { id: session.id },
     data: { lastActivity: new Date() },
   });
 
-  // Carregar histórico
   const history: SessionMessage[] = (session.history as SessionMessage[]) || [];
-
-  // Adicionar mensagem do usuário
   history.push({ role: 'user', content: message });
-
-  // Manter apenas últimas 20 mensagens
-  if (history.length > 20) {
-    history.shift();
-  }
+  if (history.length > 20) history.shift();
 
   const toolContext: ToolContext = {
     userId,
@@ -83,105 +79,97 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
   };
 
   try {
-    // Chamar Ollama com tools
+    // Chamar AI
     const tools = toolRegistry.getToolDescriptions();
     const aiResponse = await ollamaClient.chat(history, tools);
-    
-    console.log(`🤖 AI raw response: ${aiResponse.substring(0, 200)}...`);
+    console.log(`🤖 AI raw response: ${aiResponse.substring(0, 300)}...`);
 
-    // Parsear resposta JSON
-    let parsedResponse: any;
-    try {
-      // Tentar extrair JSON da resposta (pegar o JSON mais externo)
-      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsedResponse = JSON.parse(jsonMatch[0]);
-      } else {
-        parsedResponse = { action: 'respond', response: aiResponse };
-      }
-    } catch {
-      // Se não conseguir parsear JSON, tratar como resposta de texto
-      // Limpar qualquer JSON parcial da resposta
-      const cleanResponse = aiResponse
-        .replace(/\{[\s\S]*$/g, '')
-        .replace(/```[\s\S]*```/g, '')
-        .trim();
-      parsedResponse = { action: 'respond', response: cleanResponse || 'Desculpe, não entendi. Pode reformular?' };
+    // ===== PARSEAR RESPOSTA =====
+    let actions: ParsedAction[] = [];
+    let friendlyResponse = '';
+
+    // Tentar parsear JSON da resposta AI
+    const parsed = tryParseAiResponse(aiResponse);
+    if (parsed) {
+      actions = parsed.actions;
+      friendlyResponse = parsed.response;
     }
 
-    // Executar tools (suporte a ações múltiplas)
+    // ===== FALLBACK: DETECÇÃO DE INTENÇÃO =====
+    // Se AI não retornou ações válidas, detectar intenção da mensagem do usuário
+    if (actions.length === 0) {
+      const detected = detectIntent(message, userId);
+      if (detected.actions.length > 0) {
+        actions = detected.actions;
+        if (!friendlyResponse) {
+          friendlyResponse = detected.fallbackResponse;
+        }
+        console.log(`🔍 Intent detectado: ${detected.actions.map(a => a.action).join(', ')}`);
+      }
+    }
+
+    // ===== GARANTIR SCREENSHOT =====
+    // Se o usuário pediu print/screenshot e não tem ação web_screenshot, adicionar
+    const wantsScreenshot = /print|screenshot|captur|tela|foto.*site|imagem.*site|tir.*print/i.test(message);
+    const hasScreenshotAction = actions.some(a => a.action === 'web_screenshot');
+    const hasOpenBrowser = actions.some(a => a.action === 'web_open_browser' || a.action === 'web_navigate');
+    
+    if (wantsScreenshot && !hasScreenshotAction && (hasOpenBrowser || userBrowserSessions.has(userId))) {
+      actions.push({ action: 'web_screenshot', params: { sessionId: '__auto__' } });
+      console.log('📸 Auto-adicionado web_screenshot');
+    }
+
+    // ===== EXECUTAR TOOLS =====
     const allToolResults: any[] = [];
     let lastSessionId: string | null = userBrowserSessions.get(userId) || null;
 
-    if (parsedResponse.actions && Array.isArray(parsedResponse.actions)) {
-      // Múltiplas ações em sequência
-      for (const actionItem of parsedResponse.actions) {
-        const result = await executeToolAction(
-          actionItem.action,
-          actionItem.params || {},
-          toolRegistry,
-          toolContext,
-          lastSessionId
-        );
-        allToolResults.push(result);
-
-        // Se a ação criou uma sessão de browser, salvar o sessionId
-        if (result.success && result.data?.sessionId) {
-          lastSessionId = result.data.sessionId;
-          userBrowserSessions.set(userId, lastSessionId!);
-        }
-      }
-    } else if (parsedResponse.action && parsedResponse.action !== 'respond') {
-      // Ação única
+    for (const actionItem of actions) {
       const result = await executeToolAction(
-        parsedResponse.action,
-        parsedResponse.params || {},
+        actionItem.action,
+        actionItem.params || {},
         toolRegistry,
         toolContext,
         lastSessionId
       );
       allToolResults.push(result);
 
-      // Se a ação criou uma sessão de browser, salvar o sessionId
       if (result.success && result.data?.sessionId) {
         lastSessionId = result.data.sessionId;
         userBrowserSessions.set(userId, lastSessionId!);
       }
     }
 
-    // Montar resposta final para o usuário
-    let finalResponse = parsedResponse.response || '';
+    // ===== MONTAR RESPOSTA FINAL =====
+    // Sanitizar resposta do AI
+    friendlyResponse = sanitizeResponse(friendlyResponse);
 
-    // Se a resposta contém JSON, código ou nomes técnicos, limpar
-    finalResponse = sanitizeResponse(finalResponse);
-
-    // Se não tem resposta amigável, gerar uma baseada nos resultados
-    if (!finalResponse || finalResponse.length < 3) {
+    // Se resposta vazia ou muito curta, gerar automaticamente
+    if (!friendlyResponse || friendlyResponse.length < 5) {
       if (allToolResults.length > 0) {
-        finalResponse = generateFriendlyResponse(parsedResponse, allToolResults);
+        friendlyResponse = generateFriendlyResponse(actions, allToolResults);
       } else {
-        finalResponse = 'Desculpe, não entendi. Pode reformular?';
+        // Usar resposta AI limpa se não teve ações
+        const cleanAi = sanitizeResponse(aiResponse);
+        friendlyResponse = cleanAi || 'Oi! Sou o YChatClaw. Posso abrir sites, tirar prints, enviar mensagens e muito mais!';
       }
     }
 
-    // Adicionar info de screenshot se houver
+    // ===== SCREENSHOT DATA =====
     const screenshotResult = allToolResults.find(r => r.data?.screenshot);
     let screenshotData: string | null = null;
     if (screenshotResult) {
       screenshotData = screenshotResult.data.screenshot;
-      if (!finalResponse.toLowerCase().includes('print') && !finalResponse.toLowerCase().includes('screenshot')) {
-        finalResponse += '\n📸 Screenshot capturado!';
+      if (!friendlyResponse.toLowerCase().includes('print') && !friendlyResponse.toLowerCase().includes('screenshot')) {
+        friendlyResponse += '\n📸 Screenshot capturado!';
       }
     }
 
-    // Adicionar resposta ao histórico (sem dados técnicos)
+    // ===== SALVAR HISTÓRICO =====
     const historyEntry = allToolResults.length > 0
-      ? `[Executei ${allToolResults.length} ação(ões) com sucesso] ${finalResponse}`
-      : finalResponse;
-
+      ? `[Executei ${allToolResults.length} ação(ões)] ${friendlyResponse}`
+      : friendlyResponse;
     history.push({ role: 'assistant', content: historyEntry });
 
-    // Salvar histórico
     await prisma.session.update({
       where: { id: session.id },
       data: { history: history as any },
@@ -189,23 +177,127 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
 
     return {
       success: true,
-      response: finalResponse,
+      response: friendlyResponse,
       screenshotData,
-      toolResults: allToolResults.length > 0 ? allToolResults : undefined,
       sessionId: session.id,
     };
   } catch (error) {
     console.error('Erro no processamento:', error);
     return {
       success: false,
-      response: 'Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.',
-      error: 'Erro ao processar mensagem',
-      details: error instanceof Error ? error.message : undefined,
+      response: 'Desculpe, ocorreu um erro. Tente novamente.',
+      error: (error as Error).message,
     };
   }
 }
 
-// Executar uma ação de tool individual
+// ===== PARSEAR RESPOSTA AI =====
+function tryParseAiResponse(raw: string): { actions: ParsedAction[]; response: string } | null {
+  // Estratégia 1: resposta inteira é JSON
+  try {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith('{')) {
+      const parsed = JSON.parse(trimmed);
+      return normalizeActions(parsed);
+    }
+  } catch {}
+
+  // Estratégia 2: extrair primeiro JSON { ... } da resposta
+  try {
+    const jsonStart = raw.indexOf('{');
+    const jsonEnd = raw.lastIndexOf('}');
+    if (jsonStart >= 0 && jsonEnd > jsonStart) {
+      const jsonStr = raw.substring(jsonStart, jsonEnd + 1);
+      const parsed = JSON.parse(jsonStr);
+      return normalizeActions(parsed);
+    }
+  } catch {}
+
+  // Estratégia 3: extrair JSON de blocos de código
+  try {
+    const codeMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeMatch) {
+      const parsed = JSON.parse(codeMatch[1].trim());
+      return normalizeActions(parsed);
+    }
+  } catch {}
+
+  return null;
+}
+
+function normalizeActions(parsed: any): { actions: ParsedAction[]; response: string } {
+  const response = parsed.response || '';
+  let actions: ParsedAction[] = [];
+
+  if (parsed.actions && Array.isArray(parsed.actions)) {
+    actions = parsed.actions.filter((a: any) => a.action && a.action !== 'respond');
+  } else if (parsed.action && parsed.action !== 'respond') {
+    actions = [{ action: parsed.action, params: parsed.params || {} }];
+  }
+
+  return { actions, response };
+}
+
+// ===== DETECÇÃO DE INTENÇÃO (FALLBACK) =====
+function detectIntent(message: string, userId: string): { actions: ParsedAction[]; fallbackResponse: string } {
+  const msg = message.toLowerCase();
+  const actions: ParsedAction[] = [];
+  let fallbackResponse = '';
+
+  // Detectar URL na mensagem
+  const urlMatch = message.match(/https?:\/\/[^\s]+/i);
+
+  // Abrir site + print
+  if (urlMatch && /abr|entre|acesse|naveg|vai|ir|site/i.test(msg)) {
+    actions.push({ action: 'web_open_browser', params: { url: urlMatch[0] } });
+    fallbackResponse = 'Pronto! Abri o site pra você.';
+  }
+
+  // Screenshot / print
+  if (/print|screenshot|captur|tira.*tela|foto.*site|tir.*print/i.test(msg)) {
+    if (!actions.some(a => a.action === 'web_screenshot')) {
+      actions.push({ action: 'web_screenshot', params: { sessionId: '__auto__' } });
+      fallbackResponse = fallbackResponse ? fallbackResponse.replace('!', ' e tirei um print!') : '📸 Tirei um print pra você!';
+    }
+  }
+
+  // Enviar mensagem WhatsApp
+  const phoneMatch = message.match(/\b(\d{10,13})\b/);
+  if (phoneMatch && /mand|envi|envia|fal[ae]|dig[ao]|mensag/i.test(msg)) {
+    // Extrair a mensagem a enviar - pegar texto entre aspas, ou depois de padrões como "dizendo", "falando", "com a mensagem"
+    let msgToSend = '';
+    const quotedMatch = message.match(/[""]([^""]+)[""]/);
+    const afterPatternMatch = message.match(/(?:dizendo|falando|com (?:a )?mensagem|(?:o )?texto|(?:o )?conteúdo)\s*[:\-]?\s*(.+)/i);
+    
+    if (quotedMatch) {
+      msgToSend = quotedMatch[1];
+    } else if (afterPatternMatch) {
+      msgToSend = afterPatternMatch[1].trim();
+    } else {
+      // Tentar pegar o texto após o número de telefone
+      const afterPhone = message.split(phoneMatch[0])[1];
+      if (afterPhone) {
+        msgToSend = afterPhone.replace(/^[\s,.:]+/, '').trim();
+      }
+    }
+    
+    if (!msgToSend) msgToSend = 'Olá!';
+    
+    const phone = phoneMatch[1].startsWith('55') ? phoneMatch[1] : `55${phoneMatch[1]}`;
+    actions.push({ action: 'send_whatsapp_message', params: { to: phone, message: msgToSend } });
+    fallbackResponse = `Mensagem enviada para ${phoneMatch[1]}!`;
+  }
+
+  // Listar dispositivos
+  if (/disposit|device|aparelho|tablet|celular.*conect/i.test(msg)) {
+    actions.push({ action: 'list_devices', params: {} });
+    fallbackResponse = 'Vou verificar os dispositivos conectados...';
+  }
+
+  return { actions, fallbackResponse };
+}
+
+// ===== EXECUTAR TOOL =====
 async function executeToolAction(
   actionName: string,
   params: any,
@@ -213,7 +305,7 @@ async function executeToolAction(
   context: ToolContext,
   currentSessionId: string | null
 ): Promise<any> {
-  // Substituir __auto__ ou <sessionId> pelo sessionId real
+  // Auto-fill sessionId
   if (params.sessionId === '__auto__' || params.sessionId === '<sessionId>' || !params.sessionId) {
     if (currentSessionId) {
       params.sessionId = currentSessionId;
@@ -237,49 +329,51 @@ async function executeToolAction(
   }
 }
 
-// Limpar resposta de qualquer conteúdo técnico
+// ===== SANITIZAR RESPOSTA =====
 function sanitizeResponse(response: string): string {
   if (!response) return '';
   
   let clean = response
-    // Remover blocos de JSON
+    // Remover blocos JSON e código
     .replace(/```[\s\S]*?```/g, '')
     .replace(/\{[\s\S]*?\}/g, '')
+    .replace(/\[[\s\S]*?\]/g, '')
     // Remover nomes de ferramentas
-    .replace(/web_\w+/g, '')
-    .replace(/list_\w+/g, '')
-    .replace(/send_\w+/g, '')
-    // Remover "Ação:", "Parâmetros:", "sessionId", etc.
+    .replace(/\bweb_\w+/g, '')
+    .replace(/\blist_\w+/g, '')
+    .replace(/\bsend_\w+/g, '')
+    .replace(/\bget_\w+/g, '')
+    // Remover termos técnicos
+    .replace(/\b(action|params|sessionId|__auto__|targetType|commandName|DEVICE|GROUP|ALL)\b/gi, '')
     .replace(/Ação:.*$/gm, '')
     .replace(/Parâmetros:.*$/gm, '')
-    .replace(/Mensagem:.*$/gm, '')
-    .replace(/sessionId/gi, '')
     .replace(/<[^>]+>/g, '')
-    // Limpar linhas vazias extras
+    // Limpar espaços extras
     .replace(/\n{3,}/g, '\n\n')
+    .replace(/\s{3,}/g, ' ')
     .trim();
 
   return clean;
 }
 
-// Gerar resposta amigável baseada nos resultados
-function generateFriendlyResponse(parsed: any, results: any[]): string {
-  const actions = parsed.actions || [{ action: parsed.action }];
+// ===== GERAR RESPOSTA AMIGÁVEL =====
+function generateFriendlyResponse(actions: ParsedAction[], results: any[]): string {
   const parts: string[] = [];
 
   for (let i = 0; i < actions.length; i++) {
-    const action = actions[i].action || parsed.action;
+    const action = actions[i]?.action;
     const result = results[i];
-    const success = result?.success;
-
-    if (!success) {
+    if (!result?.success) {
+      if (result?.error) {
+        console.log(`⚠️ Erro na ação ${action}: ${result.error}`);
+      }
       parts.push('Houve um erro ao executar essa ação.');
       continue;
     }
 
     switch (action) {
       case 'web_open_browser':
-        parts.push(`Abri o navegador${result.data?.url ? ` na página ${result.data.title || result.data.url}` : ''}.`);
+        parts.push(`Abri o site${result.data?.title ? ` "${result.data.title}"` : ''}.`);
         break;
       case 'web_navigate':
         parts.push(`Naveguei para ${result.data?.title || result.data?.url || 'a página'}.`);
@@ -289,31 +383,39 @@ function generateFriendlyResponse(parsed: any, results: any[]): string {
         break;
       case 'web_click':
       case 'web_click_text':
-        parts.push('Cliquei no elemento solicitado.');
+        parts.push('Cliquei no elemento.');
         break;
       case 'web_type':
-        parts.push('Digitei o texto no campo.');
+        parts.push('Digitei o texto.');
         break;
       case 'web_scroll':
         parts.push('Rolei a página.');
         break;
       case 'web_login':
-        parts.push(`Fiz login${result.data?.title ? ` - agora estou na página "${result.data.title}"` : ''}.`);
+        parts.push(`Fiz login${result.data?.title ? ` - "${result.data.title}"` : ''}.`);
         break;
       case 'web_get_content':
         if (result.data?.textPreview) {
-          parts.push(`Conteúdo da página: ${result.data.textPreview.substring(0, 200)}`);
+          parts.push(`Conteúdo: ${result.data.textPreview.substring(0, 200)}`);
         }
         break;
+      case 'send_whatsapp_message':
+        parts.push(`Mensagem enviada para ${result.data?.to || 'o número'}!`);
+        break;
       case 'list_devices':
-        if (result.data && Array.isArray(result.data)) {
-          parts.push(`Encontrei ${result.data.length} dispositivo(s).`);
+        const devices = result.data?.devices;
+        if (devices && Array.isArray(devices)) {
+          if (devices.length === 0) {
+            parts.push('Nenhum dispositivo encontrado.');
+          } else {
+            parts.push(`Encontrei ${devices.length} dispositivo(s).`);
+          }
         }
         break;
       default:
-        parts.push('Ação executada com sucesso!');
+        parts.push('Ação executada!');
     }
   }
 
-  return parts.join('\n') || 'Pronto! Ação executada.';
+  return parts.join('\n') || 'Pronto!';
 }

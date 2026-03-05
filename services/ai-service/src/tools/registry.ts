@@ -27,6 +27,7 @@ export class ToolRegistry {
 
   constructor() {
     this.registerDefaultTools();
+    this.registerMessagingTools();
     this.registerWebAutomationTools();
   }
 
@@ -199,6 +200,40 @@ export class ToolRegistry {
           return { success: true, data: { groups } };
         } catch (error) {
           return { success: false, error: 'Erro ao listar grupos' };
+        }
+      },
+    });
+  }
+
+  private registerMessagingTools() {
+    // Tool: send_whatsapp_message
+    this.register({
+      name: 'send_whatsapp_message',
+      description: 'Envia uma mensagem de WhatsApp para um número de telefone',
+      parameters: {
+        type: 'object',
+        properties: {
+          to: { type: 'string', description: 'Número de telefone com código do país (ex: 5511999999999)' },
+          message: { type: 'string', description: 'Texto da mensagem a enviar' },
+        },
+        required: ['to', 'message'],
+      },
+      execute: async (params, context) => {
+        try {
+          const whatsappUrl = process.env.WHATSAPP_GATEWAY_URL || 'http://whatsapp-gateway:3003';
+          const response = await fetch(`${whatsappUrl}/send-message`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: params.to, message: params.message }),
+          });
+          const data = await response.json() as any;
+          if (data.success) {
+            return { success: true, data: { to: params.to, message: params.message } };
+          } else {
+            return { success: false, error: data.error || 'Erro ao enviar mensagem' };
+          }
+        } catch (error) {
+          return { success: false, error: (error as Error).message };
         }
       },
     });

@@ -123,6 +123,7 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3:8b}
       OLLAMA_VISION_MODEL: ${OLLAMA_VISION_MODEL:-llava:13b}
       WEB_AUTOMATION_URL: http://web-automation:3004
+      WHATSAPP_GATEWAY_URL: http://whatsapp-gateway:3003
     ports:
       - "3002:3002"
     depends_on:
