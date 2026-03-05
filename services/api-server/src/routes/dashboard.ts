@@ -57,7 +57,7 @@ router.get('/', (req, res) => {
 
     <div class="container">
         <button class="refresh-btn" onclick="loadData()">🔄 Atualizar</button>
-        
+
         <div class="grid">
             <!-- Status dos Serviços -->
             <div class="card">
@@ -80,6 +80,8 @@ router.get('/', (req, res) => {
                     </div>
                 </div>
                 <div id="qr-code" class="qr-code" style="display: none;"></div>
+                <button class="refresh-btn" onclick="loadWhatsAppQR()">📱 Gerar QR Code</button>
+                <button class="refresh-btn" onclick="checkWhatsAppStatus()">🔄 Verificar Status</button>
             </div>
 
             <!-- Estatísticas -->
@@ -104,27 +106,21 @@ router.get('/', (req, res) => {
     <script>
         async function loadData() {
             try {
-                // Carregar status da API
                 const healthResponse = await fetch('/health');
                 const healthData = await healthResponse.json();
-                
-                // Atualizar status dos serviços
                 updateServicesStatus(healthData);
-                
-                // Carregar dispositivos
+
                 const devicesResponse = await fetch('/api/devices');
                 const devicesData = await devicesResponse.json();
                 document.getElementById('active-devices').textContent = devicesData.length || 0;
-                
-                // Carregar logs simulados
+
                 updateLogs();
-                
             } catch (error) {
                 console.error('Erro ao carregar dados:', error);
                 document.getElementById('system-logs').innerHTML = '<div style="color: #ff6b6b;">❌ Erro ao carregar dados</div>';
             }
         }
-        
+
         function updateServicesStatus(healthData) {
             const servicesContainer = document.getElementById('services-status');
             const services = [
@@ -136,34 +132,81 @@ router.get('/', (req, res) => {
                 { name: 'Telegram Gateway', status: 'restarting' },
                 { name: 'Discord Gateway', status: 'restarting' }
             ];
-            
-            servicesContainer.innerHTML = services.map(service => \`
-                <div class="status">
-                    <div class="status-dot \${service.status}"></div>
-                    <span>\${service.name}</span>
-                </div>
-            \`).join('');
+
+            servicesContainer.innerHTML = services.map(service => 
+                '<div class="status">' +
+                '<div class="status-dot ' + service.status + '"></div>' +
+                '<span>' + service.name + '</span>' +
+                '</div>'
+            ).join('');
         }
-        
+
         function updateLogs() {
             const logsContainer = document.getElementById('system-logs');
             const logs = [
-                '[\${new Date().toLocaleTimeString()}] 🚀 API Server rodando na porta 3000',
-                '[\${new Date().toLocaleTimeString()}] 📱 WhatsApp Gateway conectado com sucesso!',
-                '[\${new Date().toLocaleTimeString()}] 🤖 AI Service processando solicitações',
-                '[\${new Date().toLocaleTimeString()}] 🔄 WebSocket Server aguardando conexões',
-                '[\${new Date().toLocaleTimeString()}] ⚡ Worker pronto para processar filas',
-                '[\${new Date().toLocaleTimeString()}] 📊 Database e Redis saudáveis'
+                '[' + new Date().toLocaleTimeString() + '] 🚀 API Server rodando na porta 3000',
+                '[' + new Date().toLocaleTimeString() + '] 📱 WhatsApp Gateway conectado com sucesso!',
+                '[' + new Date().toLocaleTimeString() + '] 🤖 AI Service processando solicitações',
+                '[' + new Date().toLocaleTimeString() + '] 🔄 WebSocket Server aguardando conexões',
+                '[' + new Date().toLocaleTimeString() + '] ⚡ Worker pronto para processar filas',
+                '[' + new Date().toLocaleTimeString() + '] 📊 Database e Redis saudáveis'
             ];
-            
+
             logsContainer.innerHTML = logs.join('<br>');
         }
+
+        async function loadWhatsAppQR() {
+            try {
+                const response = await fetch('/dashboard/whatsapp-qr');
+                const data = await response.json();
+                
+                if (data.qr) {
+                    document.getElementById('qr-code').innerHTML = '<pre style="font-size: 8px; line-height: 1;">' + data.qr + '</pre>';
+                    document.getElementById('qr-code').style.display = 'block';
+                    alert('📱 QR Code gerado! Escaneie com WhatsApp.');
+                } else {
+                    document.getElementById('qr-code').innerHTML = '<p>' + data.message + '</p>';
+                    document.getElementById('qr-code').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Erro ao carregar QR Code:', error);
+                document.getElementById('qr-code').innerHTML = '<p style="color: #ff6b6b;">❌ Erro ao carregar QR Code</p>';
+                document.getElementById('qr-code').style.display = 'block';
+            }
+        }
         
-        // Auto-atualizar a cada 30 segundos
+        async function checkWhatsAppStatus() {
+            try {
+                const response = await fetch('/dashboard/whatsapp-status');
+                const data = await response.json();
+                
+                const statusDiv = document.getElementById('whatsapp-status');
+                if (data.status === 'connected') {
+                    statusDiv.innerHTML = 
+                        '<div class="status">' +
+                        '<div class="status-dot online"></div>' +
+                        '<span>✅ WhatsApp Conectado</span>' +
+                        '</div>'
+                    ;
+                } else {
+                    statusDiv.innerHTML = 
+                        '<div class="status">' +
+                        '<div class="status-dot offline"></div>' +
+                        '<span>❌ WhatsApp Desconectado</span>' +
+                        '</div>'
+                    ;
+                }
+            } catch (error) {
+                console.error('Erro ao verificar status:', error);
+                document.getElementById('whatsapp-status').innerHTML = '<span style="color: #ff6b6b;">❌ Erro ao verificar status</span>';
+            }
+        }
+        
         setInterval(loadData, 30000);
+        setInterval(checkWhatsAppStatus, 10000);
         
-        // Carregar dados iniciais
         loadData();
+        checkWhatsAppStatus();
     </script>
 </body>
 </html>
@@ -173,11 +216,9 @@ router.get('/', (req, res) => {
 // Rota para obter QR Code do WhatsApp
 router.get('/whatsapp-qr', async (req, res) => {
   try {
-    // Buscar logs do WhatsApp Gateway
     const logs = await fetch('http://whatsapp-gateway:3003/logs');
     const logsText = await logs.text();
     
-    // Procurar por QR Code nos logs
     const qrMatch = logsText.match(/█[^█]*█/s);
     
     if (qrMatch) {
