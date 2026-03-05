@@ -79,20 +79,24 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
   };
 
   try {
-    // Chamar AI
-    const tools = toolRegistry.getToolDescriptions();
-    const aiResponse = await ollamaClient.chat(history, tools);
-    console.log(`🤖 AI raw response: ${aiResponse.substring(0, 300)}...`);
-
-    // ===== PARSEAR RESPOSTA =====
+    // ===== CHAMAR AI (com fallback) =====
     let actions: ParsedAction[] = [];
     let friendlyResponse = '';
+    let aiResponse = '';
 
-    // Tentar parsear JSON da resposta AI
-    const parsed = tryParseAiResponse(aiResponse);
-    if (parsed) {
-      actions = parsed.actions;
-      friendlyResponse = parsed.response;
+    try {
+      const tools = toolRegistry.getToolDescriptions();
+      aiResponse = await ollamaClient.chat(history, tools);
+      console.log(`🤖 AI raw response: ${aiResponse.substring(0, 300)}...`);
+
+      // Parsear JSON da resposta AI
+      const parsed = tryParseAiResponse(aiResponse);
+      if (parsed) {
+        actions = parsed.actions;
+        friendlyResponse = parsed.response;
+      }
+    } catch (aiError) {
+      console.error('⚠️ Ollama falhou, usando detecção de intenção:', (aiError as Error).message);
     }
 
     // ===== FALLBACK: DETECÇÃO DE INTENÇÃO =====
@@ -109,7 +113,6 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
     }
 
     // ===== GARANTIR SCREENSHOT =====
-    // Se o usuário pediu print/screenshot e não tem ação web_screenshot, adicionar
     const wantsScreenshot = /print|screenshot|captur|tela|foto.*site|imagem.*site|tir.*print/i.test(message);
     const hasScreenshotAction = actions.some(a => a.action === 'web_screenshot');
     const hasOpenBrowser = actions.some(a => a.action === 'web_open_browser' || a.action === 'web_navigate');
@@ -140,16 +143,13 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
     }
 
     // ===== MONTAR RESPOSTA FINAL =====
-    // Sanitizar resposta do AI
     friendlyResponse = sanitizeResponse(friendlyResponse);
 
-    // Se resposta vazia ou muito curta, gerar automaticamente
     if (!friendlyResponse || friendlyResponse.length < 5) {
       if (allToolResults.length > 0) {
         friendlyResponse = generateFriendlyResponse(actions, allToolResults);
       } else {
-        // Usar resposta AI limpa se não teve ações
-        const cleanAi = sanitizeResponse(aiResponse);
+        const cleanAi = aiResponse ? sanitizeResponse(aiResponse) : '';
         friendlyResponse = cleanAi || 'Oi! Sou o YChatClaw. Posso abrir sites, tirar prints, enviar mensagens e muito mais!';
       }
     }

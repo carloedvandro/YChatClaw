@@ -46,26 +46,34 @@ export class OllamaClient {
   }
 
   async generate(prompt: string, options: GenerateOptions = {}): Promise<string> {
-    const response = await fetch(`${this.baseUrl}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: this.model,
-        prompt,
-        stream: false,
-        options: {
-          temperature: options.temperature ?? 0.7,
-          num_predict: options.maxTokens ?? 2048,
-        },
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120000); // 120s timeout
 
-    if (!response.ok) {
-      throw new Error(`Erro na API Ollama: ${response.status}`);
+    try {
+      const response = await fetch(`${this.baseUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: this.model,
+          prompt,
+          stream: false,
+          options: {
+            temperature: options.temperature ?? 0.7,
+            num_predict: options.maxTokens ?? 1024,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro na API Ollama: ${response.status}`);
+      }
+
+      const data = await response.json() as { response: string };
+      return data.response;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const data = await response.json() as { response: string };
-    return data.response;
   }
 
   async chat(messages: ChatMessage[], tools?: OllamaTool[]): Promise<string> {
