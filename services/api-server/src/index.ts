@@ -21,7 +21,10 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware de segurança
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://167.86.84.197:3000'],
+  credentials: true
+}));
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
