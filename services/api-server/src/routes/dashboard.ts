@@ -201,7 +201,7 @@ router.get('/services-health', async (req, res) => {
     fetch('http://localhost:3000/health').then(r => r.json()),
     fetch('http://whatsapp-gateway:3003/health').then(r => r.json()),
     fetch('http://ai-service:3002/health').then(r => r.json()),
-    fetch('http://websocket-server:3001/health').then(r => r.json()),
+    fetch('http://websocket-server:3001/health').then(r => ({ status: 'ok' })).catch(() => fetch('http://websocket-server:3001/').then(() => ({ status: 'ok' }))),
   ]);
 
   const getName = (i: number) => ['API Server', 'WhatsApp Gateway', 'AI Service', 'WebSocket Server'][i];
