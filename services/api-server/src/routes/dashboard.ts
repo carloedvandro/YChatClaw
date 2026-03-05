@@ -233,18 +233,11 @@ router.get('/', (req, res) => {
                 if (generateData.qr) {
                     console.log('✅ QR Code recebido, abrindo janela...');
                     
-                    // Abrir QR Code em nova janela
-                    const qrWindow = window.open('/dashboard/qr-view', '_blank', 'width=400,height=500,scrollbars=yes,resizable=yes');
+                    // Codificar QR Code para URL
+                    const encodedQR = encodeURIComponent(generateData.qr);
                     
-                    // Enviar QR Code para a nova janela
-                    setTimeout(() => {
-                        if (qrWindow && !qrWindow.closed) {
-                            qrWindow.postMessage({
-                                type: 'qr-code',
-                                data: generateData.qr
-                            }, '*');
-                        }
-                    }, 500);
+                    // Abrir QR Code em nova janela com QR Code na URL
+                    const qrWindow = window.open('/dashboard/qr-view?qr=' + encodedQR, '_blank', 'width=400,height=500,scrollbars=yes,resizable=yes');
                     
                     // Também exibir no dashboard
                     document.getElementById('qr-code').innerHTML = '<pre style="font-size: 6px; line-height: 1.2;">' + generateData.qr + '</pre>';
@@ -531,20 +524,32 @@ router.get('/qr-view', (req, res) => {
     </div>
 
     <script>
-        // Escutar mensagens da janela principal
-        window.addEventListener('message', function(event) {
-            if (event.data.type === 'qr-code') {
-                const qrCode = event.data.data;
-                document.getElementById('qr-code').textContent = qrCode;
+        // Ler QR Code da URL
+        function loadQRCode() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const qrCode = urlParams.get('qr');
+            
+            if (qrCode) {
+                // Decodificar QR Code
+                const decodedQR = decodeURIComponent(qrCode);
+                document.getElementById('qr-code').textContent = decodedQR;
                 document.getElementById('status').innerHTML = '✅ QR Code pronto para escanear!';
                 document.getElementById('status').className = 'status ready';
+            } else {
+                document.getElementById('status').innerHTML = '❌ QR Code não encontrado';
+                document.getElementById('status').className = 'status waiting';
             }
-        });
+        }
+        
+        // Carregar QR Code quando a página abrir
+        window.addEventListener('load', loadQRCode);
         
         // Auto-fechar após 2 minutos
         setTimeout(() => {
             if (confirm('⏰ O QR Code expirou! Deseja gerar um novo?')) {
-                window.location.reload();
+                window.close();
+                // Tentar abrir o dashboard novamente
+                window.opener.location.href = '/dashboard';
             } else {
                 window.close();
             }
