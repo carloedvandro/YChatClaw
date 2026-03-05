@@ -170,4 +170,57 @@ router.get('/', (req, res) => {
   `);
 });
 
+// Rota para obter QR Code do WhatsApp
+router.get('/whatsapp-qr', async (req, res) => {
+  try {
+    // Buscar logs do WhatsApp Gateway
+    const logs = await fetch('http://whatsapp-gateway:3003/logs');
+    const logsText = await logs.text();
+    
+    // Procurar por QR Code nos logs
+    const qrMatch = logsText.match(/█[^█]*█/s);
+    
+    if (qrMatch) {
+      res.json({ 
+        qr: qrMatch[0],
+        timestamp: new Date().toISOString(),
+        status: 'found'
+      });
+    } else {
+      res.json({ 
+        qr: null,
+        message: 'QR Code não encontrado. Verifique se o WhatsApp está aguardando conexão.',
+        status: 'not_found'
+      });
+    }
+  } catch (error) {
+    res.json({ 
+      qr: null,
+      message: 'Erro ao buscar QR Code',
+      error: error.message,
+      status: 'error'
+    });
+  }
+});
+
+// Rota para status do WhatsApp
+router.get('/whatsapp-status', async (req, res) => {
+  try {
+    const response = await fetch('http://whatsapp-gateway:3003/health');
+    const status = await response.json();
+    
+    res.json({
+      status: 'connected',
+      timestamp: new Date().toISOString(),
+      gateway: status
+    });
+  } catch (error) {
+    res.json({
+      status: 'disconnected',
+      message: 'WhatsApp Gateway não está respondendo',
+      error: error.message
+    });
+  }
+});
+
 export { router };

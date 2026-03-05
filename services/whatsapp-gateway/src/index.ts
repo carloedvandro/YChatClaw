@@ -63,6 +63,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'whatsapp-gateway' });
 });
 
+app.get('/logs', (req, res) => {
+  res.json({ logs: 'WhatsApp Gateway logs placeholder' });
+});
+
 app.listen(port, () => {
   console.log(`🚀 WhatsApp Gateway rodando na porta ${port}`);
   startWhatsApp();
