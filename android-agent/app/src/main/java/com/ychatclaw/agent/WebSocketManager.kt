@@ -152,7 +152,7 @@ class WebSocketManager(private val context: Context) {
 
     private fun getServerUrl(): String {
         val prefs = context.getSharedPreferences("ychatclaw", Context.MODE_PRIVATE)
-        return prefs.getString("server_url", "ws://SEU_SERVIDOR:3001") ?: "ws://SEU_SERVIDOR:3001"
+        return prefs.getString("server_url", "ws://167.86.84.197:3001") ?: "ws://167.86.84.197:3001"
     }
 
     fun setServerUrl(url: String) {

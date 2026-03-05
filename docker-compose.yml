@@ -122,6 +122,7 @@ services:
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3:8b}
       OLLAMA_VISION_MODEL: ${OLLAMA_VISION_MODEL:-llava:13b}
+      WEB_AUTOMATION_URL: http://web-automation:3004
     ports:
       - "3002:3002"
     depends_on:
@@ -130,6 +131,8 @@ services:
       postgres:
         condition: service_healthy
       ollama:
+        condition: service_started
+      web-automation:
         condition: service_started
     networks:
       - ychatclaw-network
@@ -179,6 +182,26 @@ services:
         condition: service_started
     volumes:
       - ./sessions:/app/sessions
+    networks:
+      - ychatclaw-network
+
+  # -----------------------------
+  # Web Automation (Puppeteer)
+  # -----------------------------
+  web-automation:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web-automation
+    container_name: ychatclaw-web-automation
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3004
+      MAX_BROWSER_SESSIONS: 5
+      BROWSER_TIMEOUT: 30000
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+    ports:
+      - "3004:3004"
     networks:
       - ychatclaw-network
 

@@ -202,15 +202,115 @@ router.get('/services-health', async (req, res) => {
     fetch('http://whatsapp-gateway:3003/health').then(r => r.json()),
     fetch('http://ai-service:3002/health').then(r => r.json()),
     fetch('http://websocket-server:3001/health').then(r => ({ status: 'ok' })).catch(() => fetch('http://websocket-server:3001/').then(() => ({ status: 'ok' }))),
+    fetch('http://web-automation:3004/health').then(r => r.json()),
   ]);
 
-  const getName = (i: number) => ['API Server', 'WhatsApp Gateway', 'AI Service', 'WebSocket Server'][i];
+  const getName = (i: number) => ['API Server', 'WhatsApp Gateway', 'AI Service', 'WebSocket Server', 'Web Automation'][i];
   const services = checks.map((c, i) => ({
     name: getName(i),
     status: c.status === 'fulfilled' ? 'online' : 'offline',
   }));
 
   res.json({ services });
+});
+
+// === Web Automation Proxy Routes ===
+router.get('/web-sessions', async (req, res) => {
+  try {
+    const r = await fetch('http://web-automation:3004/sessions');
+    const data = await r.json();
+    res.json(data);
+  } catch (error) { res.json({ success: false, data: { sessions: [], total: 0 } }); }
+});
+
+router.post('/web-create-session', async (req, res) => {
+  try {
+    const r = await fetch('http://web-automation:3004/session/create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    res.json(await r.json());
+  } catch (error) { res.json({ success: false, error: (error as Error).message }); }
+});
+
+router.post('/web-close-session', async (req, res) => {
+  try {
+    const r = await fetch('http://web-automation:3004/session/close', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    res.json(await r.json());
+  } catch (error) { res.json({ success: false, error: (error as Error).message }); }
+});
+
+router.post('/web-navigate', async (req, res) => {
+  try {
+    const r = await fetch('http://web-automation:3004/navigate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    res.json(await r.json());
+  } catch (error) { res.json({ success: false, error: (error as Error).message }); }
+});
+
+router.post('/web-click', async (req, res) => {
+  try {
+    const r = await fetch('http://web-automation:3004/click', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    res.json(await r.json());
+  } catch (error) { res.json({ success: false, error: (error as Error).message }); }
+});
+
+router.post('/web-type', async (req, res) => {
+  try {
+    const r = await fetch('http://web-automation:3004/type', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    res.json(await r.json());
+  } catch (error) { res.json({ success: false, error: (error as Error).message }); }
+});
+
+router.post('/web-login', async (req, res) => {
+  try {
+    const r = await fetch('http://web-automation:3004/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    res.json(await r.json());
+  } catch (error) { res.json({ success: false, error: (error as Error).message }); }
+});
+
+router.post('/web-screenshot', async (req, res) => {
+  try {
+    const r = await fetch('http://web-automation:3004/screenshot', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    res.json(await r.json());
+  } catch (error) { res.json({ success: false, error: (error as Error).message }); }
+});
+
+router.post('/web-get-content', async (req, res) => {
+  try {
+    const r = await fetch('http://web-automation:3004/get-content', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    res.json(await r.json());
+  } catch (error) { res.json({ success: false, error: (error as Error).message }); }
+});
+
+router.post('/web-execute-js', async (req, res) => {
+  try {
+    const r = await fetch('http://web-automation:3004/execute-js', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    res.json(await r.json());
+  } catch (error) { res.json({ success: false, error: (error as Error).message }); }
 });
 
 function getDashboardHTML(): string {
@@ -308,6 +408,21 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#0f0f23;
 .qr-instructions h4{color:#667eea;margin-bottom:8px;font-size:14px}
 .qr-instructions ol{margin:0;padding-left:20px;color:#999;font-size:13px}
 .qr-instructions li{margin:4px 0}
+.web-toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.web-toolbar input{flex:1;min-width:200px;background:#16213e;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#fff;font-size:13px;outline:none}
+.web-toolbar input:focus{border-color:#667eea}
+.web-sessions-list{margin-bottom:12px}
+.web-session-item{display:flex;align-items:center;gap:10px;padding:8px;background:rgba(102,126,234,0.05);border:1px solid rgba(102,126,234,0.15);border-radius:8px;margin-bottom:6px;font-size:12px}
+.web-session-item .sid{color:#667eea;font-weight:600;font-family:monospace}
+.web-session-item .surl{color:#999;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.web-screenshot-box{background:#000;border-radius:8px;overflow:hidden;margin:10px 0;text-align:center;min-height:100px;display:flex;align-items:center;justify-content:center}
+.web-screenshot-box img{max-width:100%;height:auto;display:block}
+.web-screenshot-box .placeholder{color:#444;font-size:13px}
+.web-content-box{background:#0a0a1a;border-radius:8px;padding:12px;font-size:12px;max-height:250px;overflow-y:auto;line-height:1.6;color:#999;margin:10px 0}
+.web-content-box .wc-section{margin-bottom:10px}
+.web-content-box .wc-title{font-weight:600;color:#667eea;margin-bottom:4px}
+.web-content-box a{color:#10b981;text-decoration:none}
+.web-action-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 @media(max-width:900px){.stats-row,.grid-2,.grid-3{grid-template-columns:1fr}}
 </style>
 </head>
@@ -406,7 +521,36 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#0f0f23;
     </div>
   </div>
 
-  <!-- Row 4: Logs -->
+  <!-- Row 4: Web Automation -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header"><h3>&#127760; Web Automation (Controle de Navegador)</h3><span class="badge badge-blue" id="web-badge">0 sessoes</span></div>
+    <div class="card-body">
+      <div class="web-toolbar">
+        <input type="text" id="web-url" placeholder="URL para navegar (ex: https://google.com)" onkeypress="if(event.key==='Enter')webNavigateOrCreate()">
+        <button class="btn btn-success btn-sm" onclick="webCreateSession()">Nova Sessao</button>
+        <button class="btn btn-primary btn-sm" onclick="webNavigateOrCreate()">Navegar</button>
+        <button class="btn btn-warning btn-sm" onclick="webScreenshot()">Screenshot</button>
+        <button class="btn btn-primary btn-sm" onclick="webGetContent()">Analisar Pagina</button>
+      </div>
+      <div class="web-toolbar">
+        <input type="text" id="web-selector" placeholder="Seletor CSS (ex: #login-btn, .menu-item, input[name=email])">
+        <button class="btn btn-sm btn-primary" onclick="webClick()">Clicar</button>
+        <button class="btn btn-sm btn-primary" onclick="webType()">Digitar</button>
+        <input type="text" id="web-text" placeholder="Texto para digitar...">
+      </div>
+      <div class="web-toolbar">
+        <input type="text" id="web-user" placeholder="Usuario/Email">
+        <input type="password" id="web-pass" placeholder="Senha">
+        <button class="btn btn-sm btn-success" onclick="webLogin()">Fazer Login</button>
+        <button class="btn btn-sm btn-danger" onclick="webCloseSession()">Fechar Sessao</button>
+      </div>
+      <div class="web-sessions-list" id="web-sessions"></div>
+      <div class="web-screenshot-box" id="web-screenshot"><div class="placeholder">Nenhum screenshot ainda - clique em "Screenshot" para capturar</div></div>
+      <div class="web-content-box" id="web-content" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Row 5: Logs -->
   <div class="card" style="margin-bottom:20px">
     <div class="card-header"><h3>Logs do Sistema</h3><button class="btn btn-sm btn-primary" onclick="loadLogs()">Atualizar</button></div>
     <div class="card-body">
@@ -445,7 +589,7 @@ let logLines = [];
 
 // === LOAD ALL DATA ===
 async function refreshAll() {
-  await Promise.allSettled([loadStats(), loadServices(), checkWaStatus(), loadAiStatus(), loadWaMessages(), loadLogs()]);
+  await Promise.allSettled([loadStats(), loadServices(), checkWaStatus(), loadAiStatus(), loadWaMessages(), loadWebSessions(), loadLogs()]);
 }
 
 // === STATS ===
@@ -653,6 +797,161 @@ async function loadWaMessages() {
       }).join('');
     }
   } catch(e) { console.error('WA messages error:', e); }
+}
+
+// === WEB AUTOMATION ===
+let webSessionId = null;
+
+async function webCreateSession() {
+  var url = document.getElementById('web-url').value.trim() || undefined;
+  addLog('Criando sessao de navegador...', 'warn');
+  try {
+    var r = await fetch('/dashboard/web-create-session', {method:'POST', headers:hdrs, body:JSON.stringify({url:url})});
+    var d = await r.json();
+    if (d.success) {
+      webSessionId = d.data.sessionId;
+      addLog('Sessao criada: ' + d.data.sessionId.substring(0,8) + '... -> ' + (d.data.url||'blank'), 'ok');
+      loadWebSessions();
+      if (url) webScreenshot();
+    } else { addLog('Erro: ' + d.error, 'err'); }
+  } catch(e) { addLog('Erro ao criar sessao: ' + e.message, 'err'); }
+}
+
+async function webCloseSession() {
+  if (!webSessionId) return addLog('Nenhuma sessao ativa', 'warn');
+  try {
+    await fetch('/dashboard/web-close-session', {method:'POST', headers:hdrs, body:JSON.stringify({sessionId:webSessionId})});
+    addLog('Sessao fechada: ' + webSessionId.substring(0,8), 'ok');
+    webSessionId = null;
+    document.getElementById('web-screenshot').innerHTML = '<div class="placeholder">Sessao fechada</div>';
+    document.getElementById('web-content').style.display = 'none';
+    loadWebSessions();
+  } catch(e) { addLog('Erro ao fechar: ' + e.message, 'err'); }
+}
+
+async function webNavigateOrCreate() {
+  var url = document.getElementById('web-url').value.trim();
+  if (!url) return addLog('Digite uma URL', 'warn');
+  if (!webSessionId) return webCreateSession();
+  addLog('Navegando para: ' + url, 'warn');
+  try {
+    var r = await fetch('/dashboard/web-navigate', {method:'POST', headers:hdrs, body:JSON.stringify({sessionId:webSessionId, url:url})});
+    var d = await r.json();
+    if (d.success) {
+      addLog('Navegou para: ' + d.data.title + ' (' + d.data.url + ')', 'ok');
+      webScreenshot();
+    } else { addLog('Erro: ' + d.error, 'err'); }
+  } catch(e) { addLog('Erro ao navegar: ' + e.message, 'err'); }
+}
+
+async function webClick() {
+  if (!webSessionId) return addLog('Crie uma sessao primeiro', 'warn');
+  var sel = document.getElementById('web-selector').value.trim();
+  if (!sel) return addLog('Digite um seletor CSS', 'warn');
+  addLog('Clicando em: ' + sel, 'warn');
+  try {
+    var r = await fetch('/dashboard/web-click', {method:'POST', headers:hdrs, body:JSON.stringify({sessionId:webSessionId, selector:sel})});
+    var d = await r.json();
+    if (d.success) { addLog('Clique OK em: ' + sel, 'ok'); webScreenshot(); }
+    else { addLog('Erro ao clicar: ' + d.error, 'err'); }
+  } catch(e) { addLog('Erro: ' + e.message, 'err'); }
+}
+
+async function webType() {
+  if (!webSessionId) return addLog('Crie uma sessao primeiro', 'warn');
+  var sel = document.getElementById('web-selector').value.trim();
+  var txt = document.getElementById('web-text').value;
+  if (!sel || !txt) return addLog('Preencha seletor e texto', 'warn');
+  addLog('Digitando em: ' + sel, 'warn');
+  try {
+    var r = await fetch('/dashboard/web-type', {method:'POST', headers:hdrs, body:JSON.stringify({sessionId:webSessionId, selector:sel, text:txt, clear:true})});
+    var d = await r.json();
+    if (d.success) { addLog('Texto digitado em: ' + sel, 'ok'); document.getElementById('web-text').value = ''; }
+    else { addLog('Erro: ' + d.error, 'err'); }
+  } catch(e) { addLog('Erro: ' + e.message, 'err'); }
+}
+
+async function webLogin() {
+  if (!webSessionId) return addLog('Crie uma sessao primeiro', 'warn');
+  var url = document.getElementById('web-url').value.trim();
+  var user = document.getElementById('web-user').value.trim();
+  var pass = document.getElementById('web-pass').value;
+  if (!url || !user || !pass) return addLog('Preencha URL, usuario e senha', 'warn');
+  addLog('Fazendo login em: ' + url, 'warn');
+  try {
+    var r = await fetch('/dashboard/web-login', {method:'POST', headers:hdrs, body:JSON.stringify({sessionId:webSessionId, url:url, username:user, password:pass})});
+    var d = await r.json();
+    if (d.success) {
+      addLog('Login realizado! Pagina: ' + d.data.title, 'ok');
+      if (d.screenshot) { document.getElementById('web-screenshot').innerHTML = '<img src="' + d.screenshot + '">'; }
+      else { webScreenshot(); }
+    } else { addLog('Erro no login: ' + d.error, 'err'); }
+  } catch(e) { addLog('Erro: ' + e.message, 'err'); }
+}
+
+async function webScreenshot() {
+  if (!webSessionId) return addLog('Crie uma sessao primeiro', 'warn');
+  try {
+    var r = await fetch('/dashboard/web-screenshot', {method:'POST', headers:hdrs, body:JSON.stringify({sessionId:webSessionId})});
+    var d = await r.json();
+    if (d.success && d.data && d.data.screenshot) {
+      document.getElementById('web-screenshot').innerHTML = '<img src="' + d.data.screenshot + '">';
+    } else { addLog('Erro no screenshot: ' + (d.error||'sem dados'), 'err'); }
+  } catch(e) { addLog('Erro: ' + e.message, 'err'); }
+}
+
+async function webGetContent() {
+  if (!webSessionId) return addLog('Crie uma sessao primeiro', 'warn');
+  addLog('Analisando pagina...', 'warn');
+  try {
+    var r = await fetch('/dashboard/web-get-content', {method:'POST', headers:hdrs, body:JSON.stringify({sessionId:webSessionId})});
+    var d = await r.json();
+    if (d.success && d.data) {
+      var c = d.data;
+      var html = '<div class="wc-section"><div class="wc-title">Pagina: ' + (c.title||'?') + '</div><div>' + (c.url||'') + '</div></div>';
+      if (c.inputs && c.inputs.length) {
+        html += '<div class="wc-section"><div class="wc-title">Campos (' + c.inputs.length + ')</div>';
+        c.inputs.forEach(function(i) { html += '<div>&#9679; [' + (i.type||'text') + '] name="' + (i.name||'') + '" id="' + (i.id||'') + '" placeholder="' + (i.placeholder||'') + '"</div>'; });
+        html += '</div>';
+      }
+      if (c.buttons && c.buttons.length) {
+        html += '<div class="wc-section"><div class="wc-title">Botoes (' + c.buttons.length + ')</div>';
+        c.buttons.forEach(function(b) { html += '<div>&#9679; "' + (b.text||'?') + '" id="' + (b.id||'') + '" class="' + (b.class||'').substring(0,40) + '"</div>'; });
+        html += '</div>';
+      }
+      if (c.links && c.links.length) {
+        html += '<div class="wc-section"><div class="wc-title">Links (' + c.links.length + ')</div>';
+        c.links.forEach(function(l) { html += '<div>&#9679; <a href="#">' + (l.text||l.href||'?').substring(0,60) + '</a></div>'; });
+        html += '</div>';
+      }
+      if (c.checkboxes && c.checkboxes.length) {
+        html += '<div class="wc-section"><div class="wc-title">Checkboxes (' + c.checkboxes.length + ')</div>';
+        c.checkboxes.forEach(function(cb) { html += '<div>&#9679; [' + (cb.checked?'X':' ') + '] "' + (cb.label||cb.name||cb.id||'?') + '"</div>'; });
+        html += '</div>';
+      }
+      if (c.textPreview) {
+        html += '<div class="wc-section"><div class="wc-title">Texto visivel</div><div>' + c.textPreview.substring(0,500).replace(/</g,'&lt;') + '...</div></div>';
+      }
+      document.getElementById('web-content').innerHTML = html;
+      document.getElementById('web-content').style.display = 'block';
+      addLog('Pagina analisada: ' + c.inputs.length + ' campos, ' + c.buttons.length + ' botoes, ' + c.links.length + ' links', 'ok');
+    } else { addLog('Erro: ' + (d.error||'sem dados'), 'err'); }
+  } catch(e) { addLog('Erro: ' + e.message, 'err'); }
+}
+
+async function loadWebSessions() {
+  try {
+    var r = await fetch('/dashboard/web-sessions', {headers:hdrs});
+    var d = await r.json();
+    var el = document.getElementById('web-sessions');
+    var sessions = (d.data && d.data.sessions) || [];
+    document.getElementById('web-badge').textContent = sessions.length + ' sessoes';
+    if (sessions.length === 0) { el.innerHTML = ''; return; }
+    el.innerHTML = sessions.map(function(s) {
+      var active = s.id === webSessionId ? ' style="border-color:#10b981"' : '';
+      return '<div class="web-session-item"' + active + '><span class="sid">' + s.id.substring(0,8) + '...</span><span class="surl">' + (s.url||'blank') + '</span><span class="badge badge-blue">' + (s.title||'').substring(0,30) + '</span><button class="btn btn-sm btn-primary" onclick="webSessionId=\\'' + s.id + '\\';addLog(\\'Sessao selecionada: ' + s.id.substring(0,8) + '\\',\\'ok\\');loadWebSessions()">Selecionar</button></div>';
+    }).join('');
+  } catch(e) { console.error('Web sessions error:', e); }
 }
 
 // === LOGS ===

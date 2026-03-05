@@ -1,0 +1,45 @@
+FROM openjdk:17-slim
+
+# Instalar dependências
+RUN apt-get update && apt-get install -y \
+    wget \
+    unzip \
+    git \
+    curl \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+# Android SDK
+ENV ANDROID_HOME=/opt/android-sdk
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+
+RUN mkdir -p $ANDROID_HOME/cmdline-tools && \
+    cd $ANDROID_HOME/cmdline-tools && \
+    wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O tools.zip && \
+    unzip -q tools.zip && \
+    mv cmdline-tools latest && \
+    rm tools.zip
+
+RUN yes | sdkmanager --licenses > /dev/null 2>&1 && \
+    sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" > /dev/null 2>&1
+
+WORKDIR /app
+
+# Copiar projeto Android
+COPY android-agent/ .
+
+# Gerar Gradle wrapper se não existir
+RUN if [ ! -f gradlew ]; then \
+    gradle wrapper --gradle-version=8.2 2>/dev/null || \
+    (mkdir -p gradle/wrapper && \
+     wget -q https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -O gradle/wrapper/gradle-wrapper.jar && \
+     printf '#!/bin/sh\nexec java -jar "$(dirname "$0")/gradle/wrapper/gradle-wrapper.jar" "$@"\n' > gradlew && \
+     chmod +x gradlew); \
+    fi
+
+# Build APK
+RUN chmod +x gradlew 2>/dev/null; \
+    ./gradlew assembleRelease --no-daemon || ./gradlew assembleDebug --no-daemon || echo "Build will run on demand"
+
+CMD ["./gradlew", "assembleDebug", "--no-daemon"]

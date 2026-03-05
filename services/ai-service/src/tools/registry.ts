@@ -27,6 +27,7 @@ export class ToolRegistry {
 
   constructor() {
     this.registerDefaultTools();
+    this.registerWebAutomationTools();
   }
 
   register(tool: Tool): void {
@@ -201,5 +202,14 @@ export class ToolRegistry {
         }
       },
     });
+  }
+
+  private registerWebAutomationTools() {
+    const { getWebAutomationTools } = require('./web-automation-tools');
+    const tools = getWebAutomationTools();
+    for (const tool of tools) {
+      this.register(tool);
+    }
+    console.log(`🌐 ${tools.length} ferramentas de automação web registradas`);
   }
 }

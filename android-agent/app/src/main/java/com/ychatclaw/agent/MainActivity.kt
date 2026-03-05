@@ -48,11 +48,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadSettings() {
         val prefs = getSharedPreferences("ychatclaw", MODE_PRIVATE)
-        val serverUrl = prefs.getString("server_url", "ws://SEU_SERVIDOR:3001")
+        val serverUrl = prefs.getString("server_url", "ws://167.86.84.197:3001")
         val uuid = DeviceIdManager(this).getOrCreateUuid()
 
         serverUrlInput.setText(serverUrl)
         uuidText.text = "UUID: $uuid"
+
+        // Mostrar info do dispositivo
+        val deviceInfo = findViewById<TextView>(R.id.deviceInfoText)
+        deviceInfo.text = "Modelo: ${android.os.Build.MODEL}\n" +
+                "Fabricante: ${android.os.Build.MANUFACTURER}\n" +
+                "Android: ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})\n" +
+                "Device ID: $uuid"
     }
 
     private fun saveSettings() {

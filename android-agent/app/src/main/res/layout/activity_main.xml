@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="match_parent">
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="16dp">
 
@@ -12,6 +16,15 @@
         android:textSize="24sp"
         android:textStyle="bold"
         android:gravity="center"
+        android:layout_marginBottom="4dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Controle Remoto de Dispositivo Android"
+        android:textSize="12sp"
+        android:gravity="center"
+        android:textColor="#888888"
         android:layout_marginBottom="16dp" />
 
     <TextView
@@ -19,29 +32,33 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="UUID: --"
-        android:textSize="12sp"
-        android:layout_marginBottom="8dp" />
+        android:textSize="13sp"
+        android:fontFamily="monospace"
+        android:background="#F0F0F0"
+        android:padding="8dp"
+        android:layout_marginBottom="12dp" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Servidor WebSocket:"
-        android:textStyle="bold" />
+        android:textStyle="bold"
+        android:textSize="14sp" />
 
     <EditText
         android:id="@+id/serverUrlInput"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="ws://seu-servidor:3001"
+        android:hint="ws://167.86.84.197:3001"
         android:inputType="textUri"
-        android:layout_marginBottom="16dp" />
+        android:layout_marginBottom="12dp" />
 
     <Button
         android:id="@+id/saveButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Salvar Configurações"
-        android:layout_marginBottom="16dp" />
+        android:text="Salvar Configuracoes"
+        android:layout_marginBottom="12dp" />
 
     <TextView
         android:id="@+id/statusText"
@@ -50,12 +67,15 @@
         android:text="Status: Parado"
         android:textSize="16sp"
         android:gravity="center"
-        android:layout_marginBottom="16dp" />
+        android:padding="12dp"
+        android:background="#FFF3E0"
+        android:layout_marginBottom="12dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp">
 
         <Button
             android:id="@+id/startButton"
@@ -74,4 +94,34 @@
             android:layout_marginStart="8dp" />
     </LinearLayout>
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Comandos Disponiveis:"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:layout_marginBottom="4dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Basicos: open_app, open_url, open_webview, play_video, display_image, slideshow, get_device_info\n\nWeb Automation: web_navigate, web_click, web_type, web_screenshot, web_get_content, web_select, web_checkbox, web_execute_js, web_login"
+        android:textSize="11sp"
+        android:textColor="#666666"
+        android:background="#F5F5F5"
+        android:padding="10dp"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:id="@+id/deviceInfoText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Info do dispositivo..."
+        android:textSize="11sp"
+        android:textColor="#555555"
+        android:fontFamily="monospace"
+        android:background="#F0F8FF"
+        android:padding="8dp" />
+
 </LinearLayout>
+</ScrollView>
