@@ -1189,9 +1189,17 @@ let agentsList = [];
 
 async function loadAgents() {
   try {
-    const r = await fetch('/dashboard/agents', {headers: hdrs});
-    const d = await r.json();
-    agentsList = d.agents || [];
+    // Buscar agentes e status do gateway em paralelo
+    const [agentsR, waR] = await Promise.allSettled([
+      fetch('/dashboard/agents', {headers: hdrs}).then(function(r){return r.json()}),
+      fetch('/dashboard/whatsapp-status', {headers: hdrs}).then(function(r){return r.json()})
+    ]);
+    const agentsData = agentsR.status === 'fulfilled' ? agentsR.value : {agents:[]};
+    const waData = waR.status === 'fulfilled' ? waR.value : {};
+    agentsList = agentsData.agents || [];
+    const gwConnected = waData.connectionStatus === 'connected';
+    const gwNumber = waData.connectedNumber || '';
+    
     document.getElementById('agent-badge').textContent = agentsList.length + ' agentes';
     const el = document.getElementById('agent-list');
     if (agentsList.length === 0) {
@@ -1201,16 +1209,25 @@ async function loadAgents() {
     el.innerHTML = agentsList.map(function(a) {
       const statusColor = a.isActive ? '#10b981' : '#ef4444';
       const statusText = a.isActive ? 'Ativo' : 'Inativo';
-      const waColor = a.whatsappStatus === 'connected' ? '#10b981' : '#ef4444';
-      const waText = a.whatsappStatus === 'connected' ? 'Conectado' : 'Desconectado';
+      // Status real do WhatsApp: cruzar numero do agente com gateway conectado
+      var waRealConnected = false;
+      if (gwConnected && a.whatsappNumber && gwNumber) {
+        var agentNum = a.whatsappNumber.replace(/\\D/g, '');
+        waRealConnected = gwNumber.includes(agentNum) || agentNum.includes(gwNumber);
+      }
+      // Tambem usar DB status como fallback
+      if (a.whatsappStatus === 'connected') waRealConnected = true;
+      const waColor = waRealConnected ? '#10b981' : '#ef4444';
+      const waText = waRealConnected ? 'Conectado' : 'Desconectado';
       const allowed = (Array.isArray(a.allowedNumbers) ? a.allowedNumbers : []);
       const allowedText = allowed.length > 0 ? allowed.length + ' numero(s)' : 'Todos';
       return '<div style="background:rgba(102,126,234,0.05);border:1px solid rgba(102,126,234,0.15);border-radius:8px;padding:14px;margin-bottom:8px">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
           '<div style="display:flex;align-items:center;gap:10px">' +
-            '<div style="width:10px;height:10px;border-radius:50%;background:' + statusColor + '"></div>' +
+            '<div style="width:10px;height:10px;border-radius:50%;background:' + statusColor + ';box-shadow:0 0 6px ' + statusColor + '"></div>' +
             '<span style="font-weight:600;color:#fff;font-size:14px">' + a.name + '</span>' +
             '<span class="badge badge-blue">' + a.model + '</span>' +
+            '<span class="badge ' + (waRealConnected?'badge-green':'badge-red') + '">' + waText + '</span>' +
           '</div>' +
           '<div style="display:flex;gap:6px">' +
             '<button class="btn btn-primary btn-sm" onclick="editAgent(\\'' + a.id + '\\')">Editar</button>' +
@@ -1219,15 +1236,15 @@ async function loadAgents() {
           '</div>' +
         '</div>' +
         '<div style="font-size:12px;color:#888;margin-bottom:6px">' + (a.description || 'Sem descricao') + '</div>' +
-        '<div style="display:flex;gap:16px;font-size:11px;color:#666">' +
-          '<span>WhatsApp: <span style="color:' + waColor + '">' + waText + '</span>' + (a.whatsappNumber ? ' (' + a.whatsappNumber + ')' : '') + '</span>' +
+        '<div style="display:flex;gap:16px;font-size:11px;color:#666;flex-wrap:wrap">' +
+          '<span>WhatsApp: <span style="color:' + waColor + ';font-weight:600">' + waText + '</span>' + (a.whatsappNumber ? ' (' + a.whatsappNumber + ')' : ' (sem numero)') + '</span>' +
           '<span>Permitidos: ' + allowedText + '</span>' +
-          '<span>Status: <span style="color:' + statusColor + '">' + statusText + '</span></span>' +
+          '<span>Agente: <span style="color:' + statusColor + '">' + statusText + '</span></span>' +
+          (gwConnected && gwNumber ? '<span>Gateway: ' + gwNumber + '</span>' : '') +
         '</div>' +
         (a.systemPrompt ? '<div style="margin-top:8px;padding:8px;background:#0a0a1a;border-radius:6px;font-size:11px;color:#777;max-height:60px;overflow:hidden">' + a.systemPrompt.substring(0,200) + (a.systemPrompt.length > 200 ? '...' : '') + '</div>' : '') +
       '</div>';
     }).join('');
-    addLog('Agentes carregados: ' + agentsList.length, 'ok');
   } catch(e) { console.error('Agents error:', e); }
 }
 
@@ -1326,7 +1343,7 @@ function loadLogs() {
 addLog('Dashboard carregado', 'ok');
 addLog('Verificando servicos...', 'warn');
 refreshAll();
-setInterval(function(){ loadStats(); checkWaStatus(); loadWaMessages(); }, 15000);
+setInterval(function(){ loadStats(); checkWaStatus(); loadWaMessages(); loadAgents(); }, 15000);
 setInterval(loadServices, 60000);
 </script>
 </body>

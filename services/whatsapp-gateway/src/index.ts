@@ -22,6 +22,48 @@ let qrCodeImage: string | null = null;
 let qrCodeTimestamp: string | null = null;
 let waClient: any = null;
 let isInitializing: boolean = false;
+let connectedNumber: string | null = null;
+
+// Atualizar status do agente no banco de dados
+async function updateAgentStatus(whatsappNumber: string, status: string): Promise<void> {
+  try {
+    const res = await fetch('http://localhost:3000/api/agents');
+    const data = await res.json() as any;
+    const agents = data.agents || [];
+    for (const agent of agents) {
+      if (agent.whatsappNumber && whatsappNumber.includes(agent.whatsappNumber.replace(/\D/g, ''))) {
+        await fetch(`http://localhost:3000/api/agents/${agent.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ whatsappStatus: status }),
+        });
+        console.log(`📋 Agente "${agent.name}" status atualizado: ${status}`);
+      }
+    }
+  } catch (e) {
+    console.log('⚠️ Não foi possível atualizar status do agente:', (e as Error).message);
+  }
+}
+
+// Marcar todos os agentes como desconectados
+async function disconnectAllAgents(): Promise<void> {
+  try {
+    const res = await fetch('http://localhost:3000/api/agents');
+    const data = await res.json() as any;
+    const agents = data.agents || [];
+    for (const agent of agents) {
+      if (agent.whatsappStatus !== 'disconnected') {
+        await fetch(`http://localhost:3000/api/agents/${agent.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ whatsappStatus: 'disconnected' }),
+        });
+      }
+    }
+  } catch (e) {
+    console.log('⚠️ Não foi possível desconectar agentes:', (e as Error).message);
+  }
+}
 
 // Inicializar cliente WhatsApp real
 async function initWhatsAppClient(): Promise<void> {
@@ -130,18 +172,40 @@ async function initWhatsAppClient(): Promise<void> {
           const agents = (agentsData.agents || []).filter((a: any) => a.isActive);
           
           if (agents.length > 0) {
-            // Procurar agente que tem este número na whitelist
-            matchedAgent = agents.find((a: any) => {
-              const allowed = Array.isArray(a.allowedNumbers) ? a.allowedNumbers : [];
-              if (allowed.length === 0) return true; // sem whitelist = aceita todos
-              return allowed.some((n: string) => senderNumber.includes(n) || n.includes(senderNumber));
-            });
+            // 1. Primeiro: procurar agente pelo número WhatsApp conectado (este gateway)
+            if (connectedNumber) {
+              matchedAgent = agents.find((a: any) => {
+                if (!a.whatsappNumber) return false;
+                const agentNum = a.whatsappNumber.replace(/\D/g, '');
+                return connectedNumber!.includes(agentNum) || agentNum.includes(connectedNumber!);
+              });
+            }
+            
+            // 2. Se não encontrou por número, procurar por whitelist
+            if (!matchedAgent) {
+              matchedAgent = agents.find((a: any) => {
+                const allowed = Array.isArray(a.allowedNumbers) ? a.allowedNumbers : [];
+                if (allowed.length === 0) return true; // sem whitelist = aceita todos
+                return allowed.some((n: string) => senderNumber.includes(n) || n.includes(senderNumber));
+              });
+            }
             
             if (!matchedAgent) {
               console.log(`🚫 Número ${senderNumber} não está na whitelist de nenhum agente`);
               return;
             }
-            console.log(`✅ Número ${senderNumber} permitido no agente: ${matchedAgent.name}`);
+            
+            // 3. Verificar whitelist do agente encontrado
+            const allowed = Array.isArray(matchedAgent.allowedNumbers) ? matchedAgent.allowedNumbers : [];
+            if (allowed.length > 0) {
+              const isAllowed = allowed.some((n: string) => senderNumber.includes(n) || n.includes(senderNumber));
+              if (!isAllowed) {
+                console.log(`🚫 Número ${senderNumber} não permitido no agente ${matchedAgent.name}`);
+                return;
+              }
+            }
+            
+            console.log(`✅ Número ${senderNumber} -> agente: ${matchedAgent.name}`);
           }
         } catch (agentErr) {
           // Se não conseguir verificar agentes, permitir (fallback)
@@ -193,12 +257,27 @@ async function initWhatsAppClient(): Promise<void> {
     });
 
     // Evento: Cliente pronto (autenticado)
-    waClient.on('ready', () => {
+    waClient.on('ready', async () => {
       console.log('✅ WhatsApp conectado com sucesso!');
       connectionStatus = 'connected';
       qrCodeImage = null;
       qrCodeTimestamp = null;
       isInitializing = false;
+      
+      // Obter número conectado
+      try {
+        const info = waClient.info;
+        if (info && info.wid) {
+          connectedNumber = info.wid.user || info.wid._serialized?.replace('@c.us', '') || null;
+          console.log(`📱 Número conectado: ${connectedNumber}`);
+          // Atualizar status do agente que usa este número
+          if (connectedNumber) {
+            await updateAgentStatus(connectedNumber, 'connected');
+          }
+        }
+      } catch (e) {
+        console.log('⚠️ Não foi possível obter número conectado:', (e as Error).message);
+      }
       
       // Limpar arquivo QR
       const qrFile = path.join(sessionPath, 'qrcode.txt');
@@ -219,12 +298,15 @@ async function initWhatsAppClient(): Promise<void> {
     });
     
     // Evento: Desconectado
-    waClient.on('disconnected', (reason: string) => {
+    waClient.on('disconnected', async (reason: string) => {
       console.log('📵 WhatsApp desconectado:', reason);
       connectionStatus = 'disconnected';
       qrCodeImage = null;
       waClient = null;
       isInitializing = false;
+      connectedNumber = null;
+      // Marcar todos agentes como desconectados
+      await disconnectAllAgents();
     });
     
     // Inicializar o cliente
@@ -290,6 +372,7 @@ app.get('/qrcode', (req, res) => {
 app.get('/status', (req, res) => {
   res.json({
     connectionStatus: connectionStatus,
+    connectedNumber: connectedNumber,
     qrAvailable: qrCodeImage !== null,
     qrTimestamp: qrCodeTimestamp,
     timestamp: new Date().toISOString()
@@ -414,8 +497,10 @@ app.post('/disconnect', async (req, res) => {
       waClient = null;
     }
     connectionStatus = 'disconnected';
+    connectedNumber = null;
     clearQRCode();
     isInitializing = false;
+    await disconnectAllAgents();
     
     res.json({ status: 'disconnected', message: 'WhatsApp desconectado.' });
   } catch (error) {
