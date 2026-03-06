@@ -59,7 +59,7 @@ export class OllamaClient {
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
-          model: this.model,
+          model: this.smartModel,
           prompt,
           stream: false,
           options: {
