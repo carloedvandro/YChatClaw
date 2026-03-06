@@ -1,6 +1,10 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
 
 const router = express.Router();
+
+const APK_PATH = '/app/apk/app-debug.apk';
 
 // Middleware de autenticação simples
 router.use('/', (req, res, next) => {
@@ -360,6 +364,22 @@ router.post('/web-execute-js', async (req, res) => {
   } catch (error) { res.json({ success: false, error: (error as Error).message }); }
 });
 
+// Rota para verificar se APK existe
+router.get('/check-apk', (req, res) => {
+  const exists = fs.existsSync(APK_PATH);
+  const size = exists ? fs.statSync(APK_PATH).size : 0;
+  const sizeKB = Math.round(size / 1024);
+  res.json({ exists, sizeKB, path: exists ? '/dashboard/download-apk' : null });
+});
+
+// Rota para baixar o APK
+router.get('/download-apk', (req, res) => {
+  if (!fs.existsSync(APK_PATH)) {
+    return res.status(404).json({ error: 'APK nao encontrado. Compile via Android Studio e envie para o servidor.' });
+  }
+  res.download(APK_PATH, 'YChatClaw-Agent.apk');
+});
+
 function getDashboardHTML(): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -568,7 +588,38 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#0f0f23;
     </div>
   </div>
 
-  <!-- Row 4: Device Control -->
+  <!-- Row 4: APK Download -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header"><h3>&#128640; Android Agent — Download APK</h3><span class="badge badge-yellow" id="apk-badge">Verificando...</span></div>
+    <div class="card-body">
+      <div id="apk-section">
+        <div style="display:flex;align-items:center;gap:20px;padding:10px 0">
+          <div style="font-size:48px">&#129302;</div>
+          <div style="flex:1">
+            <div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:6px">Agente Android — YChatClaw</div>
+            <div style="font-size:13px;color:#888;margin-bottom:12px">Instale o APK no celular para controlar dispositivos remotamente via AI, WhatsApp e Dashboard.</div>
+            <div id="apk-status-area">
+              <div style="color:#f59e0b;font-size:13px">&#9203; Verificando disponibilidade do APK...</div>
+            </div>
+          </div>
+        </div>
+        <div style="background:rgba(102,126,234,0.08);border:1px solid rgba(102,126,234,0.2);border-radius:8px;padding:14px;margin-top:10px">
+          <h4 style="font-size:13px;color:#ccc;margin-bottom:8px">&#128736; Como compilar o APK</h4>
+          <ol style="font-size:12px;color:#888;padding-left:18px;line-height:2">
+            <li>Abra o Android Studio e importe a pasta <code style="background:#0a0a1a;padding:2px 6px;border-radius:4px">android-agent/</code> do projeto</li>
+            <li>Clique em <strong style="color:#ccc">Build &gt; Build APK(s)</strong></li>
+            <li>Copie o APK gerado para o servidor:</li>
+          </ol>
+          <div style="background:#0a0a1a;border-radius:6px;padding:10px;margin-top:8px;font-family:monospace;font-size:11px;color:#10b981">
+            scp android-agent/app/build/outputs/apk/debug/app-debug.apk user@167.86.84.197:/home/user/YChatClaw/apk/app-debug.apk
+          </div>
+          <div style="font-size:12px;color:#888;margin-top:8px">Apos copiar, recarregue esta pagina e o botao de download aparecera.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 5: Device Control -->
   <div class="card" style="margin-bottom:20px">
     <div class="card-header"><h3>&#128241; Controle de Dispositivos</h3><span class="badge badge-blue" id="dev-badge">0 dispositivos</span></div>
     <div class="card-body">
@@ -597,7 +648,7 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#0f0f23;
     </div>
   </div>
 
-  <!-- Row 5: Web Automation -->
+  <!-- Row 6: Web Automation -->
   <div class="card" style="margin-bottom:20px">
     <div class="card-header"><h3>&#127760; Web Automation (Controle de Navegador)</h3><span class="badge badge-blue" id="web-badge">0 sessoes</span></div>
     <div class="card-body">
@@ -626,7 +677,7 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#0f0f23;
     </div>
   </div>
 
-  <!-- Row 5: Logs -->
+  <!-- Row 7: Logs -->
   <div class="card" style="margin-bottom:20px">
     <div class="card-header"><h3>Logs do Sistema</h3><button class="btn btn-sm btn-primary" onclick="loadLogs()">Atualizar</button></div>
     <div class="card-body">
@@ -665,7 +716,28 @@ let logLines = [];
 
 // === LOAD ALL DATA ===
 async function refreshAll() {
-  await Promise.allSettled([loadStats(), loadServices(), checkWaStatus(), loadAiStatus(), loadWaMessages(), loadDevices(), loadWebSessions(), loadLogs()]);
+  await Promise.allSettled([loadStats(), loadServices(), checkWaStatus(), loadAiStatus(), loadWaMessages(), checkApkStatus(), loadDevices(), loadWebSessions(), loadLogs()]);
+}
+
+// === APK CHECK ===
+async function checkApkStatus() {
+  try {
+    const r = await fetch('/dashboard/check-apk', {headers: hdrs});
+    const d = await r.json();
+    const badge = document.getElementById('apk-badge');
+    const area = document.getElementById('apk-status-area');
+    if (d.exists) {
+      badge.textContent = 'Disponivel (' + d.sizeKB + ' KB)';
+      badge.className = 'badge badge-green';
+      area.innerHTML = '<a href="/dashboard/download-apk" class="btn btn-success" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none">&#11015; Baixar APK (YChatClaw-Agent.apk)</a><span style="font-size:12px;color:#888;margin-left:12px">' + d.sizeKB + ' KB</span>';
+    } else {
+      badge.textContent = 'Nao compilado';
+      badge.className = 'badge badge-yellow';
+      area.innerHTML = '<span style="color:#f59e0b;font-size:13px">&#9888; APK nao encontrado no servidor. Siga as instrucoes abaixo para compilar e enviar.</span>';
+    }
+  } catch(e) {
+    document.getElementById('apk-badge').textContent = 'Erro';
+  }
 }
 
 // === STATS ===
