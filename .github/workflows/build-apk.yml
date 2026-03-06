@@ -3,8 +3,6 @@ name: Build Android APK
 on:
   push:
     branches: [main]
-    paths:
-      - 'android-agent/**'
   workflow_dispatch:
 
 jobs:
@@ -21,15 +19,13 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Gradle
+      - name: Set up Gradle 8.2
         uses: gradle/actions/setup-gradle@v3
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-        working-directory: android-agent
+        with:
+          gradle-version: '8.2'
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon
         working-directory: android-agent
 
       - name: Upload APK as artifact
@@ -40,7 +36,7 @@ jobs:
           retention-days: 30
 
       - name: Deploy APK to server
-        if: ${{ secrets.SERVER_SSH_KEY != '' }}
+        continue-on-error: true
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
           SERVER_HOST: 167.86.84.197
@@ -52,4 +48,4 @@ jobs:
           ssh-keyscan -H $SERVER_HOST >> ~/.ssh/known_hosts
           ssh -i ~/.ssh/deploy_key $SERVER_USER@$SERVER_HOST "mkdir -p /home/user/YChatClaw/apk"
           scp -i ~/.ssh/deploy_key android-agent/app/build/outputs/apk/debug/app-debug.apk $SERVER_USER@$SERVER_HOST:/home/user/YChatClaw/apk/app-debug.apk
-          echo "APK enviado para o servidor com sucesso!"
+          echo "APK enviado!"
