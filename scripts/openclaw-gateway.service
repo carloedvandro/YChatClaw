@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenClaw Gateway
+After=network.target ollama.service
+
+[Service]
+Type=simple
+Environment=PATH=/home/user/.nvm/versions/node/v22.22.1/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NVM_DIR=/home/user/.nvm
+Environment=OLLAMA_API_KEY=ollama-local
+ExecStart=/home/user/.nvm/versions/node/v22.22.1/bin/node /home/user/.nvm/versions/node/v22.22.1/bin/openclaw gateway --port 18789 --verbose
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

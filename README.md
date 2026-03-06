@@ -290,6 +290,68 @@ Contribuições são bem-vindas! Por favor, leia nosso guia de contribuição an
 
 MIT License - veja [LICENSE](LICENSE) para detalhes.
 
+## OpenClaw — Assistente IA Pessoal
+
+O servidor também roda o [OpenClaw](https://github.com/openclaw/openclaw), um assistente IA pessoal open-source que utiliza os mesmos modelos Ollama do YChatClaw.
+
+### Acesso
+
+| Recurso | URL |
+|---------|-----|
+| Control UI | `http://167.86.84.197:18789` |
+| WebSocket | `ws://167.86.84.197:18789` |
+| Browser Control | `http://127.0.0.1:18791` (local) |
+
+**Autenticação**: modo `password` — senha: `openclaw123`
+
+### Configuração
+
+- **Versão**: OpenClaw v2026.3.2
+- **Node.js**: v22.22.1 (via nvm)
+- **Modelo**: `ollama/llama3:8b` (Ollama local em `127.0.0.1:11434`)
+- **Porta Gateway**: 18789 (não conflita com YChatClaw: 3000-3005)
+- **Porta Browser**: 18791
+- **Config**: `~/.openclaw/openclaw.json`
+- **Logs**: `/tmp/openclaw/openclaw-YYYY-MM-DD.log`
+
+### Gerenciamento (via SSH)
+
+```bash
+# Status do gateway
+systemctl --user status openclaw-gateway
+
+# Reiniciar
+systemctl --user restart openclaw-gateway
+
+# Parar
+systemctl --user stop openclaw-gateway
+
+# Ver logs
+journalctl --user -u openclaw-gateway -f
+
+# Listar modelos disponíveis
+source ~/.nvm/nvm.sh && openclaw models list
+
+# Alterar modelo
+source ~/.nvm/nvm.sh && openclaw config set agents.defaults.model.primary ollama/MODELO
+systemctl --user restart openclaw-gateway
+```
+
+### Portas em uso
+
+| Porta | Serviço |
+|-------|---------|
+| 3000 | API Server / Dashboard (YChatClaw) |
+| 3001 | WebSocket Server WS (YChatClaw) |
+| 3002 | AI Service (YChatClaw) |
+| 3003 | WhatsApp Gateway (YChatClaw) |
+| 3004 | Web Automation (YChatClaw) |
+| 3005 | WebSocket HTTP API (YChatClaw) |
+| 11434 | Ollama (host) |
+| 11435 | Ollama (Docker) |
+| 18789 | OpenClaw Gateway |
+| 18791 | OpenClaw Browser Control |
+
 ## Suporte
 
 Para suporte, entre em contato através dos canais oficiais da Yrwen Technology.
