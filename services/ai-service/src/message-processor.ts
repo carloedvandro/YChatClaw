@@ -105,31 +105,39 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
     let friendlyResponse = '';
     let aiResponse = '';
 
-    try {
-      const tools = toolRegistry.getToolDescriptions();
-      aiResponse = await withOllamaLock(() => ollamaClient.chat(history, tools));
-      console.log(`🤖 AI raw response: ${aiResponse.substring(0, 300)}...`);
-
-      // Parsear JSON da resposta AI
-      const parsed = tryParseAiResponse(aiResponse);
-      if (parsed) {
-        actions = parsed.actions;
-        friendlyResponse = parsed.response;
-      }
-    } catch (aiError) {
-      console.error('⚠️ Ollama falhou, usando detecção de intenção:', (aiError as Error).message);
+    // ===== PASSO 1: DETECÇÃO DE INTENÇÃO POR REGEX (instantâneo) =====
+    const detected = detectIntent(message, userId);
+    if (detected.actions.length > 0) {
+      actions = detected.actions;
+      friendlyResponse = detected.fallbackResponse;
+      console.log(`🔍 Intent regex: ${detected.actions.map(a => a.action).join(', ')}`);
     }
 
-    // ===== FALLBACK: DETECÇÃO DE INTENÇÃO =====
-    // Se AI não retornou ações válidas, detectar intenção da mensagem do usuário
+    // ===== PASSO 2: SE NÃO DETECTOU POR REGEX, USAR IA =====
     if (actions.length === 0) {
-      const detected = detectIntent(message, userId);
-      if (detected.actions.length > 0) {
-        actions = detected.actions;
-        if (!friendlyResponse) {
-          friendlyResponse = detected.fallbackResponse;
+      try {
+        const needsToolCall = await ollamaClient.needsTools(message);
+        
+        if (needsToolCall) {
+          // Tarefa complexa → modelo 4b (smart)
+          console.log(`🧠 Roteando para modelo SMART (4b)...`);
+          const tools = toolRegistry.getToolDescriptions();
+          aiResponse = await withOllamaLock(() => ollamaClient.chatSmart(history, tools));
+        } else {
+          // Chat simples → modelo 0.8b (fast)
+          console.log(`⚡ Roteando para modelo FAST (0.8b)...`);
+          aiResponse = await withOllamaLock(() => ollamaClient.chatFast(history));
         }
-        console.log(`🔍 Intent detectado: ${detected.actions.map(a => a.action).join(', ')}`);
+
+        console.log(`🤖 AI raw: ${aiResponse.substring(0, 300)}...`);
+
+        const parsed = tryParseAiResponse(aiResponse);
+        if (parsed) {
+          actions = parsed.actions;
+          friendlyResponse = parsed.response;
+        }
+      } catch (aiError) {
+        console.error('⚠️ Ollama falhou:', (aiError as Error).message);
       }
     }
 

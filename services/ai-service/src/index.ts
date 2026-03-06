@@ -17,8 +17,9 @@ const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 // Inicializar cliente Ollama
 const ollamaClient = new OllamaClient({
   baseUrl: process.env.OLLAMA_URL || 'http://host.docker.internal:11434',
-  model: process.env.OLLAMA_MODEL || 'qwen3.5:4b',
-  visionModel: process.env.OLLAMA_VISION_MODEL || 'llava:13b',
+  fastModel: process.env.OLLAMA_FAST_MODEL || 'qwen3.5:0.8b',
+  smartModel: process.env.OLLAMA_SMART_MODEL || 'qwen3.5:4b',
+  visionModel: process.env.OLLAMA_VISION_MODEL || 'qwen3.5:4b',
 });
 
 // Inicializar registry de tools

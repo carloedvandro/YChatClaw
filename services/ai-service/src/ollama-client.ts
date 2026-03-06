@@ -1,6 +1,7 @@
 interface OllamaClientOptions {
   baseUrl: string;
-  model: string;
+  fastModel: string;   // 0.8b - chat simples, rápido
+  smartModel: string;  // 4b - tool calling, tarefas complexas
   visionModel: string;
 }
 
@@ -27,13 +28,16 @@ interface OllamaTool {
 
 export class OllamaClient {
   private baseUrl: string;
-  private model: string;
+  private fastModel: string;
+  private smartModel: string;
   private visionModel: string;
 
   constructor(options: OllamaClientOptions) {
     this.baseUrl = options.baseUrl;
-    this.model = options.model;
+    this.fastModel = options.fastModel;
+    this.smartModel = options.smartModel;
     this.visionModel = options.visionModel;
+    console.log(`🤖 Modelos: fast=${this.fastModel}, smart=${this.smartModel}, vision=${this.visionModel}`);
   }
 
   async healthCheck(): Promise<boolean> {
@@ -76,42 +80,67 @@ export class OllamaClient {
     }
   }
 
+  // Chat rápido (0.8b) - para conversa simples, saudações, perguntas
+  async chatFast(messages: ChatMessage[]): Promise<string> {
+    return this.chatWithModel(this.fastModel, messages, this.buildSimplePrompt(), 30000, 512);
+  }
+
+  // Chat inteligente (4b) - para tool calling, comandos de dispositivo
+  async chatSmart(messages: ChatMessage[], tools?: OllamaTool[]): Promise<string> {
+    return this.chatWithModel(this.smartModel, messages, this.buildSystemPrompt(tools), 90000, 1024);
+  }
+
+  // Método legado - redireciona para chatSmart
   async chat(messages: ChatMessage[], tools?: OllamaTool[]): Promise<string> {
+    return this.chatSmart(messages, tools);
+  }
+
+  // Classificar se a mensagem precisa de tools (usa 0.8b, ultra-rápido)
+  async needsTools(message: string): Promise<boolean> {
+    // Primeiro: detecção por regex (instantâneo)
+    const toolPatterns = /abr[aei]|acesse?|naveg|pesquis|digit|escrev|clic|print|screenshot|captur|mand.*mensag|envi.*mensag|disposit|device|aparelho|celular|youtube|google|instagram|facebook|whatsapp|spotify|netflix|telegram|https?:\/\//i;
+    if (toolPatterns.test(message)) return true;
+
+    // Se não é óbvio, é chat simples
+    return false;
+  }
+
+  private async chatWithModel(model: string, messages: ChatMessage[], systemPrompt: string, timeoutMs: number, maxTokens: number): Promise<string> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      // Montar mensagens com system prompt + histórico
-      const systemPrompt = this.buildSystemPrompt(tools);
       const chatMessages = [
         { role: 'system', content: systemPrompt },
         ...messages,
       ];
 
-      console.log(`🤖 Chat com ${chatMessages.length} mensagens (model: ${this.model})`);
+      const start = Date.now();
+      console.log(`🤖 [${model}] Chat com ${chatMessages.length} msgs`);
 
       const response = await fetch(`${this.baseUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
-          model: this.model,
+          model,
           messages: chatMessages,
           stream: false,
           options: {
             temperature: 0.7,
-            num_predict: 1024,
+            num_predict: maxTokens,
           },
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`Erro na API Ollama chat: ${response.status}`);
+        throw new Error(`Erro na API Ollama chat (${model}): ${response.status}`);
       }
 
       const data = await response.json() as { message?: { content: string } };
       const content = data.message?.content || '';
-      console.log(`🤖 Resposta: ${content.substring(0, 200)}...`);
+      const elapsed = Date.now() - start;
+      console.log(`🤖 [${model}] ${elapsed}ms: ${content.substring(0, 200)}...`);
       return content;
     } finally {
       clearTimeout(timeout);
@@ -142,70 +171,34 @@ export class OllamaClient {
     return data.response;
   }
 
+  // Prompt simples para chat rápido (0.8b)
+  private buildSimplePrompt(): string {
+    return `Você é o YChatClaw, assistente pessoal inteligente. Responda SEMPRE em português do Brasil.
+Responda APENAS com JSON válido: {"actions":[],"response":"sua resposta"}
+Seja amigável e pessoal. Use o histórico da conversa para lembrar o nome do usuário e contexto.
+NUNCA coloque JSON no campo response. Seja breve e natural.`;
+  }
+
+  // Prompt completo para tarefas complexas (4b)
   private buildSystemPrompt(tools?: OllamaTool[]): string {
-    let prompt = `Você é o YChatClaw, assistente pessoal de automação inteligente. Responda SEMPRE em português do Brasil.
-Responda APENAS com JSON válido, nada mais. Sem texto antes ou depois do JSON.
+    return `Você é o YChatClaw, assistente de automação. Responda SEMPRE em português do Brasil.
+Responda APENAS com JSON válido, sem texto antes ou depois.
 
-MEMÓRIA E CONTEXTO:
-- Você TEM memória da conversa. Leia TODAS as mensagens anteriores (User/Assistant) antes de responder.
-- Se o usuário já se apresentou antes na conversa, lembre-se do nome dele e use-o.
-- Se o usuário faz referência a algo que vocês conversaram antes (ex: "aquele site", "o mesmo", "continua"), use o contexto das mensagens anteriores para entender.
-- Seja pessoal e amigável. Trate o usuário como um amigo, não como um estranho a cada mensagem.
-- Se o usuário perguntar "você lembra?", olhe o histórico da conversa e responda com base nele.
+Use o histórico para lembrar nome do usuário e contexto.
 
-Formato obrigatório:
-{"actions":[{"action":"TOOL","params":{}}],"response":"texto amigável"}
+Formato: {"actions":[{"action":"TOOL","params":{}}],"response":"texto"}
+Sem ações: {"actions":[],"response":"resposta"}
 
-Se não precisa executar nenhuma ferramenta:
-{"actions":[],"response":"sua resposta aqui"}
+Ferramentas (celular):
+- send_device_command: {"deviceId":"__first__","commandName":"CMD","params":{...}}
+  CMDs: open_url({url}), open_app({package_name}), web_type({selector,text}), web_click({selector}), web_screenshot({}), web_get_content({})
+- send_whatsapp_message: {"to":"5511...","message":"texto"}
+- list_devices: {}
 
-Ferramentas PRINCIPAIS (use estas por padrão para controlar o celular do usuário):
-- send_device_command: envia comando para o celular Android. params: {"deviceId":"__first__","commandName":"COMANDO","params":{...}}
-  Comandos do celular:
-  - open_url: abre site no celular. params: {"url":"https://..."}
-  - open_app: abre app. params: {"package_name":"com.google.android.youtube"}
-  - web_navigate: navega para URL no WebView. params: {"url":"https://..."}
-  - web_type: digita texto. params: {"selector":"input[name=q]","text":"texto"}
-  - web_click: clica em elemento. params: {"selector":"button"}
-  - web_screenshot: tira print da tela do celular. params: {}
-  - web_get_content: lê conteúdo da página. params: {}
-  - get_device_info: info do dispositivo. params: {}
-- send_whatsapp_message: envia mensagem WhatsApp. params: {"to":"5511999999999","message":"texto"}
-- list_devices: lista dispositivos conectados. params: {}
+Apps: youtube=com.google.android.youtube, whatsapp=com.whatsapp, chrome=com.android.chrome, instagram=com.instagram.android, facebook=com.facebook.katana, spotify=com.spotify.music, netflix=com.netflix.mediaclient, telegram=org.telegram.messenger
 
-Ferramentas SECUNDÁRIAS (navegador do servidor - só use se o usuário pedir especificamente):
-- web_open_browser: abre site no SERVIDOR. params: {"url":"https://..."}
-- web_screenshot: tira print no SERVIDOR. params: {"sessionId":"__auto__"}
+Exemplo: "Abre o Google" → {"actions":[{"action":"send_device_command","params":{"deviceId":"__first__","commandName":"open_url","params":{"url":"https://google.com"}}}],"response":"Abri o Google!"}
 
-IMPORTANTE: Quando o usuário pede para abrir um site, pesquisar algo, etc., SEMPRE use send_device_command para fazer no CELULAR do usuário. Só use web_open_browser se o usuário disser "no servidor".
-
-Apps conhecidos:
-youtube=com.google.android.youtube, whatsapp=com.whatsapp, chrome=com.android.chrome, instagram=com.instagram.android, facebook=com.facebook.katana, spotify=com.spotify.music, netflix=com.netflix.mediaclient, telegram=org.telegram.messenger, gmail=com.google.android.gm, maps=com.google.android.apps.maps, configuracoes=com.android.settings
-
-Exemplos:
-User: "Abre o Google"
-{"actions":[{"action":"send_device_command","params":{"deviceId":"__first__","commandName":"open_url","params":{"url":"https://google.com"}}}],"response":"Pronto! Abri o Google no seu celular."}
-
-User: "Escreve cachorro e pesquisa"
-{"actions":[{"action":"send_device_command","params":{"deviceId":"__first__","commandName":"web_type","params":{"selector":"input[name=q], textarea[name=q], input[type=search]","text":"cachorro"}}},{"action":"send_device_command","params":{"deviceId":"__first__","commandName":"web_click","params":{"selector":"input[type=submit], button[type=submit], button[aria-label=Pesquisa Google]"}}}],"response":"Digitei 'cachorro' e pesquisei pra você!"}
-
-User: "Abre o YouTube"
-{"actions":[{"action":"send_device_command","params":{"deviceId":"__first__","commandName":"open_app","params":{"package_name":"com.google.android.youtube"}}}],"response":"Abri o YouTube no seu celular!"}
-
-User: "Meu nome é Carlos"
-{"actions":[],"response":"Prazer, Carlos! Sou o YChatClaw, seu assistente pessoal. Como posso te ajudar hoje?"}
-
-User: "Oi tudo bem?"
-{"actions":[],"response":"Oi! Tudo ótimo! Sou o YChatClaw, seu assistente pessoal. Posso abrir sites, pesquisar coisas, controlar seu celular, enviar mensagens e muito mais!"}
-
-REGRAS:
-- Responda SOMENTE JSON válido.
-- O campo "response" é o que o usuário vai ler — seja natural, amigável e pessoal.
-- NUNCA coloque JSON ou código no campo response.
-- USE o histórico da conversa para contextualizar suas respostas.
-- Se o usuário disse o nome dele antes, USE o nome nas respostas.
-`;
-
-    return prompt;
+REGRAS: Responda SOMENTE JSON. Campo response = texto amigável para o usuário.`;
   }
 }
