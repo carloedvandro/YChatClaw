@@ -83,4 +83,6 @@ app.get('/health', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`🤖 AI Service rodando na porta ${PORT}`);
   console.log(`📡 Conectando ao Ollama em: ${process.env.OLLAMA_URL}`);
+  // Pré-aquecer modelos (carrega na RAM do Ollama para respostas rápidas)
+  setTimeout(() => ollamaClient.warmup(), 5000);
 });

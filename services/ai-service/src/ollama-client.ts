@@ -81,8 +81,16 @@ export class OllamaClient {
   }
 
   // Chat rápido (0.8b) - para conversa simples, saudações, perguntas
+  // Retorna texto puro (0.8b não produz JSON confiável)
   async chatFast(messages: ChatMessage[]): Promise<string> {
-    return this.chatWithModel(this.fastModel, messages, this.buildSimplePrompt(), 30000, 512);
+    const raw = await this.chatWithModel(this.fastModel, messages, this.buildSimplePrompt(), 20000, 256);
+    // Tentar extrair response de JSON se o modelo produziu
+    try {
+      const json = JSON.parse(raw.trim());
+      if (json.response) return json.response;
+    } catch {}
+    // Senão, retornar texto limpo
+    return raw.replace(/```[\s\S]*?```/g, '').replace(/\{[\s\S]*?\}/g, '').trim() || raw;
   }
 
   // Chat inteligente (4b) - para tool calling, comandos de dispositivo
@@ -171,12 +179,33 @@ export class OllamaClient {
     return data.response;
   }
 
-  // Prompt simples para chat rápido (0.8b)
+  // Pré-aquecer modelos (carrega na RAM do Ollama)
+  async warmup(): Promise<void> {
+    console.log('🔥 Pré-aquecendo modelos...');
+    try {
+      await Promise.all([
+        fetch(`${this.baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: this.fastModel, messages: [{ role: 'user', content: 'oi' }], stream: false, options: { num_predict: 1 } }),
+        }),
+        fetch(`${this.baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: this.smartModel, messages: [{ role: 'user', content: 'oi' }], stream: false, options: { num_predict: 1 } }),
+        }),
+      ]);
+      console.log('🔥 Modelos pré-aquecidos!');
+    } catch (e) {
+      console.warn('⚠️ Warmup falhou (modelos carregarão no primeiro uso):', (e as Error).message);
+    }
+  }
+
+  // Prompt simples para chat rápido (0.8b) - texto puro, sem JSON
   private buildSimplePrompt(): string {
     return `Você é o YChatClaw, assistente pessoal inteligente. Responda SEMPRE em português do Brasil.
-Responda APENAS com JSON válido: {"actions":[],"response":"sua resposta"}
-Seja amigável e pessoal. Use o histórico da conversa para lembrar o nome do usuário e contexto.
-NUNCA coloque JSON no campo response. Seja breve e natural.`;
+Seja amigável, breve e pessoal. Use o histórico para lembrar o nome do usuário e contexto anterior.
+Responda em texto puro, sem JSON, sem código, sem formatação especial. Máximo 2 frases.`;
   }
 
   // Prompt completo para tarefas complexas (4b)

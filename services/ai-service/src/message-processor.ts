@@ -88,9 +88,10 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
     data: { lastActivity: new Date() },
   });
 
-  const history: SessionMessage[] = (session.history as SessionMessage[]) || [];
+  let history: SessionMessage[] = (session.history as SessionMessage[]) || [];
   history.push({ role: 'user', content: message });
-  if (history.length > 20) history.shift();
+  // Limitar histórico a 10 mensagens para evitar contexto muito grande
+  while (history.length > 10) history.shift();
 
   const toolContext: ToolContext = {
     userId,
@@ -123,18 +124,18 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
           console.log(`🧠 Roteando para modelo SMART (4b)...`);
           const tools = toolRegistry.getToolDescriptions();
           aiResponse = await withOllamaLock(() => ollamaClient.chatSmart(history, tools));
+          console.log(`🤖 AI raw: ${aiResponse.substring(0, 300)}...`);
+          const parsed = tryParseAiResponse(aiResponse);
+          if (parsed) {
+            actions = parsed.actions;
+            friendlyResponse = parsed.response;
+          }
         } else {
-          // Chat simples → modelo 0.8b (fast)
+          // Chat simples → modelo 0.8b (fast) - retorna texto puro
           console.log(`⚡ Roteando para modelo FAST (0.8b)...`);
-          aiResponse = await withOllamaLock(() => ollamaClient.chatFast(history));
-        }
-
-        console.log(`🤖 AI raw: ${aiResponse.substring(0, 300)}...`);
-
-        const parsed = tryParseAiResponse(aiResponse);
-        if (parsed) {
-          actions = parsed.actions;
-          friendlyResponse = parsed.response;
+          const fastResponse = await withOllamaLock(() => ollamaClient.chatFast(history));
+          console.log(`⚡ Fast response: ${fastResponse.substring(0, 200)}`);
+          friendlyResponse = fastResponse;
         }
       } catch (aiError) {
         console.error('⚠️ Ollama falhou:', (aiError as Error).message);
