@@ -77,22 +77,45 @@ export class OllamaClient {
   }
 
   async chat(messages: ChatMessage[], tools?: OllamaTool[]): Promise<string> {
-    // Construir prompt com histórico
-    let prompt = this.buildSystemPrompt(tools);
-    
-    for (const msg of messages) {
-      if (msg.role === 'system') {
-        prompt += `System: ${msg.content}\n`;
-      } else if (msg.role === 'user') {
-        prompt += `User: ${msg.content}\n`;
-      } else {
-        prompt += `Assistant: ${msg.content}\n`;
-      }
-    }
-    
-    prompt += 'Assistant: ';
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120000);
 
-    return this.generate(prompt);
+    try {
+      // Montar mensagens com system prompt + histórico
+      const systemPrompt = this.buildSystemPrompt(tools);
+      const chatMessages = [
+        { role: 'system', content: systemPrompt },
+        ...messages,
+      ];
+
+      console.log(`🤖 Chat com ${chatMessages.length} mensagens (model: ${this.model})`);
+
+      const response = await fetch(`${this.baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: this.model,
+          messages: chatMessages,
+          stream: false,
+          options: {
+            temperature: 0.7,
+            num_predict: 1024,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro na API Ollama chat: ${response.status}`);
+      }
+
+      const data = await response.json() as { message?: { content: string } };
+      const content = data.message?.content || '';
+      console.log(`🤖 Resposta: ${content.substring(0, 200)}...`);
+      return content;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async generateWithVision(prompt: string, imageBase64: string): Promise<string> {

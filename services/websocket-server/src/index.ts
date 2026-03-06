@@ -17,6 +17,9 @@ const HEARTBEAT_TIMEOUT = parseInt(process.env.HEARTBEAT_TIMEOUT_MS || '90000');
 // Mapa de conexões ativas: deviceId -> WebSocket
 const connections = new Map<string, WebSocket>();
 
+// Mapa reverso: wsId -> deviceId (para identificar dispositivo ao desconectar)
+const wsToDevice = new Map<string, string>();
+
 // Mapa de UUIDs pendentes (aguardando registro): wsId -> { ws, timestamp }
 const pendingConnections = new Map<string, { ws: WebSocket; timestamp: number }>();
 
@@ -210,7 +213,15 @@ async function handleRegister(wsId: string, ws: WebSocket, message: any) {
 
     // Remover da lista de pendentes e adicionar às conexões ativas
     pendingConnections.delete(wsId);
+
+    // Fechar conexão antiga se existir (evita duplicatas)
+    const oldWs = connections.get(device.id);
+    if (oldWs && oldWs !== ws && oldWs.readyState === WebSocket.OPEN) {
+      oldWs.close(1000, 'Nova conexão do mesmo dispositivo');
+    }
+
     connections.set(device.id, ws);
+    wsToDevice.set(wsId, device.id);
 
     // Salvar no Redis
     await redis.setex(`device:${device.id}`, 300, JSON.stringify({
@@ -296,22 +307,34 @@ async function handleCommandResult(message: any) {
   }
 }
 
-function handleDisconnect(wsId: string) {
+async function handleDisconnect(wsId: string) {
   // Verificar se é uma conexão pendente
   if (pendingConnections.has(wsId)) {
     pendingConnections.delete(wsId);
     return;
   }
 
-  // Procurar o deviceId associado ao WebSocket
-  for (const [deviceId, ws] of connections.entries()) {
-    if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+  // Usar mapa reverso para encontrar o deviceId
+  const deviceId = wsToDevice.get(wsId);
+  wsToDevice.delete(wsId);
+
+  if (deviceId) {
+    // Só remover se esta é a conexão ativa (evita remover reconexão nova)
+    const currentWs = connections.get(deviceId);
+    if (currentWs?.readyState === WebSocket.CLOSED || currentWs?.readyState === WebSocket.CLOSING) {
       connections.delete(deviceId);
-      
-      // Atualizar status no banco (não marcar como offline imediatamente)
-      // O timeout do heartbeat vai cuidar disso
-      console.log(`Dispositivo desconectado: ${deviceId}`);
-      break;
+    }
+
+    // Marcar como OFFLINE no banco
+    try {
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { status: 'OFFLINE' },
+      });
+      await redis.del(`device:${deviceId}`);
+      console.log(`Dispositivo desconectado e marcado OFFLINE: ${deviceId}`);
+    } catch (e) {
+      console.error('Erro ao marcar dispositivo offline:', e);
     }
   }
 }
