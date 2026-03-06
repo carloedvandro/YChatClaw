@@ -1,18 +1,28 @@
 package com.ychatclaw.agent
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var serverUrlInput: EditText
     private lateinit var uuidText: TextView
     private lateinit var statusText: TextView
+
+    private val requestNotificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            startService()
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,8 +41,13 @@ class MainActivity : AppCompatActivity() {
 
         startButton.setOnClickListener {
             saveSettings()
-            YChatClawService.start(this)
-            updateStatus("Serviço iniciado")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                startService()
+            }
         }
 
         stopButton.setOnClickListener {
@@ -67,6 +82,11 @@ class MainActivity : AppCompatActivity() {
         prefs.edit()
             .putString("server_url", serverUrlInput.text.toString())
             .apply()
+    }
+
+    private fun startService() {
+        YChatClawService.start(this)
+        updateStatus("Serviço iniciado")
     }
 
     private fun updateStatus(status: String) {
