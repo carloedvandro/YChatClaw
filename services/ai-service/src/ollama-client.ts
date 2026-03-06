@@ -85,7 +85,8 @@ export class OllamaClient {
   async chatFast(messages: ChatMessage[]): Promise<string> {
     // Limitar a últimas 4 mensagens para manter resposta rápida
     const trimmed = messages.slice(-4);
-    const raw = await this.chatWithModel(this.fastModel, trimmed, this.buildSimplePrompt(), 45000, 256);
+    // think:false desativa modo de "pensamento" do qwen3.5 (evita tokens desperdiçados)
+    const raw = await this.chatWithModel(this.fastModel, trimmed, this.buildSimplePrompt(), 45000, 512, false);
     // Tentar extrair response de JSON se o modelo produziu
     try {
       const json = JSON.parse(raw.trim());
@@ -97,7 +98,7 @@ export class OllamaClient {
 
   // Chat inteligente (4b) - para tool calling, comandos de dispositivo
   async chatSmart(messages: ChatMessage[], tools?: OllamaTool[]): Promise<string> {
-    return this.chatWithModel(this.smartModel, messages, this.buildSystemPrompt(tools), 90000, 1024);
+    return this.chatWithModel(this.smartModel, messages, this.buildSystemPrompt(tools), 90000, 1024, false);
   }
 
   // Método legado - redireciona para chatSmart
@@ -115,7 +116,7 @@ export class OllamaClient {
     return false;
   }
 
-  private async chatWithModel(model: string, messages: ChatMessage[], systemPrompt: string, timeoutMs: number, maxTokens: number): Promise<string> {
+  private async chatWithModel(model: string, messages: ChatMessage[], systemPrompt: string, timeoutMs: number, maxTokens: number, think: boolean = true): Promise<string> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -126,7 +127,7 @@ export class OllamaClient {
       ];
 
       const start = Date.now();
-      console.log(`🤖 [${model}] Chat com ${chatMessages.length} msgs`);
+      console.log(`🤖 [${model}] Chat com ${chatMessages.length} msgs (think=${think})`);
 
       const response = await fetch(`${this.baseUrl}/api/chat`, {
         method: 'POST',
@@ -136,6 +137,7 @@ export class OllamaClient {
           model,
           messages: chatMessages,
           stream: false,
+          think,
           options: {
             temperature: 0.7,
             num_predict: maxTokens,
