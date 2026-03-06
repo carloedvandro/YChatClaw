@@ -342,10 +342,30 @@ function detectIntent(message: string, userId: string): { actions: ParsedAction[
   // Detectar URL na mensagem
   const urlMatch = message.match(/https?:\/\/[^\s]+/i);
 
-  // Abrir site
+  // Detectar nomes de sites comuns sem URL
+  const siteMatch = msg.match(/(?:abr[aei]?|acesse?|entr[ae]|naveg\w*|vai|ir)\s+(?:o |a |no |na |em )?(?:site |página |pagina )?(?:do |da |de )?(google|youtube|facebook|instagram|twitter|whatsapp|spotify|netflix|gmail|telegram)/i);
+
+  // Abrir site - preferir dispositivo
   if (urlMatch && /abr|entre|acesse|naveg|vai|ir|site/i.test(msg)) {
-    actions.push({ action: 'web_open_browser', params: { url: urlMatch[0] } });
-    fallbackResponse = 'Pronto! Abri o site pra você.';
+    actions.push({ action: 'send_device_command', params: { deviceId: '__first__', commandName: 'open_url', params: { url: urlMatch[0] } } });
+    fallbackResponse = 'Pronto! Abri o site no seu celular.';
+  } else if (siteMatch && !urlMatch) {
+    const siteUrls: Record<string, string> = {
+      google: 'https://www.google.com',
+      youtube: 'https://www.youtube.com',
+      facebook: 'https://www.facebook.com',
+      instagram: 'https://www.instagram.com',
+      twitter: 'https://www.twitter.com',
+      spotify: 'https://open.spotify.com',
+      netflix: 'https://www.netflix.com',
+      gmail: 'https://mail.google.com',
+      telegram: 'https://web.telegram.org',
+      whatsapp: 'https://web.whatsapp.com',
+    };
+    const siteName = siteMatch[1].toLowerCase();
+    const siteUrl = siteUrls[siteName] || `https://www.${siteName}.com`;
+    actions.push({ action: 'send_device_command', params: { deviceId: '__first__', commandName: 'open_url', params: { url: siteUrl } } });
+    fallbackResponse = `Pronto! Abri o ${siteMatch[1]} no seu celular.`;
   }
 
   // Scroll / rolar página

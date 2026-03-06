@@ -165,13 +165,27 @@ class DeviceIdManager(private val context: Context) {
     
     fun getOrCreateUuid(): String {
         val prefs = context.getSharedPreferences("ychatclaw", Context.MODE_PRIVATE)
-        var uuid = prefs.getString("device_uuid", null)
         
+        // Usar ANDROID_ID que persiste entre reinstalações do app
+        val androidId = android.provider.Settings.Secure.getString(
+            context.contentResolver,
+            android.provider.Settings.Secure.ANDROID_ID
+        )
+        
+        if (!androidId.isNullOrEmpty()) {
+            // Gerar UUID determinístico baseado no ANDROID_ID
+            val stableUuid = UUID.nameUUIDFromBytes(androidId.toByteArray()).toString()
+            // Atualizar SharedPreferences para consistência
+            prefs.edit().putString("device_uuid", stableUuid).apply()
+            return stableUuid
+        }
+        
+        // Fallback: UUID aleatório (caso raro)
+        var uuid = prefs.getString("device_uuid", null)
         if (uuid == null) {
             uuid = UUID.randomUUID().toString()
             prefs.edit().putString("device_uuid", uuid).apply()
         }
-        
         return uuid
     }
 }

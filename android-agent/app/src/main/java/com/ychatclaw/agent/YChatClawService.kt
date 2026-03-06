@@ -54,10 +54,11 @@ class YChatClawService : Service() {
         releaseWakeLock()
     }
 
+    @Suppress("DEPRECATION")
     private fun acquireWakeLock() {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(
-            PowerManager.PARTIAL_WAKE_LOCK,
+            PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
             "YChatClaw::RemoteControl"
         ).apply {
             acquire()
