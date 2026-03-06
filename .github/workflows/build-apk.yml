@@ -36,7 +36,7 @@ jobs:
           retention-days: 30
 
       - name: Deploy APK to server
-        if: ${{ secrets.SERVER_SSH_KEY != '' }}
+        continue-on-error: true
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
           SERVER_HOST: 167.86.84.197
