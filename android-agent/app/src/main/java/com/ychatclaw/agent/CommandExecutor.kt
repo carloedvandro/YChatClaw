@@ -60,8 +60,13 @@ class CommandExecutor(private val context: Context) {
             return CommandResult(false, error = "url é obrigatório")
         }
 
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        // Usar WebView interno para manter controle do dispositivo
+        val intent = Intent(context, WebViewActivity::class.java).apply {
+            putExtra("url", url)
+            putExtra("enable_js", true)
+            putExtra("enable_local_storage", true)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
         context.startActivity(intent)
 
         return CommandResult(true, data = JSONObject().put("url", url))
