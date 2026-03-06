@@ -31,7 +31,7 @@ const userLastUrls: Map<string, string> = new Map();
 // Mutex para serializar chamadas ao Ollama (evitar flood)
 let ollamaLock: Promise<void> = Promise.resolve();
 
-function withOllamaLock<T>(fn: () => Promise<T>, timeoutMs: number = 90000): Promise<T> {
+function withOllamaLock<T>(fn: () => Promise<T>, timeoutMs: number = 120000): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Ollama queue timeout')), timeoutMs);
     ollamaLock = ollamaLock.then(async () => {
@@ -117,26 +117,11 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
     // ===== PASSO 2: SE NÃO DETECTOU POR REGEX, USAR IA =====
     if (actions.length === 0) {
       try {
-        const needsToolCall = await ollamaClient.needsTools(message);
-        
-        if (needsToolCall) {
-          // Tarefa complexa → modelo 4b (smart)
-          console.log(`🧠 Roteando para modelo SMART (4b)...`);
-          const tools = toolRegistry.getToolDescriptions();
-          aiResponse = await withOllamaLock(() => ollamaClient.chatSmart(history, tools));
-          console.log(`🤖 AI raw: ${aiResponse.substring(0, 300)}...`);
-          const parsed = tryParseAiResponse(aiResponse);
-          if (parsed) {
-            actions = parsed.actions;
-            friendlyResponse = parsed.response;
-          }
-        } else {
-          // Chat simples → modelo 0.8b (fast) - retorna texto puro
-          console.log(`⚡ Roteando para modelo FAST (0.8b)...`);
-          const fastResponse = await withOllamaLock(() => ollamaClient.chatFast(history));
-          console.log(`⚡ Fast response: ${fastResponse.substring(0, 200)}`);
-          friendlyResponse = fastResponse;
-        }
+        // Usar sempre o modelo rápido (0.8b) - 4b é muito lento em CPU (~48s)
+        console.log(`⚡ Roteando para modelo FAST (0.8b)...`);
+        const fastResponse = await withOllamaLock(() => ollamaClient.chatFast(history));
+        console.log(`⚡ Fast response: ${fastResponse.substring(0, 200)}`);
+        friendlyResponse = fastResponse;
       } catch (aiError) {
         console.error('⚠️ Ollama falhou:', (aiError as Error).message);
       }
@@ -353,6 +338,15 @@ function detectIntent(message: string, userId: string): { actions: ParsedAction[
 
   // Detectar nomes de sites comuns sem URL
   const siteMatch = msg.match(/(?:abr[aei]?|acesse?|entr[ae]|naveg\w*|vai|ir)\s+(?:o |a |no |na |em )?(?:site |página |pagina )?(?:do |da |de )?(google|youtube|facebook|instagram|twitter|whatsapp|spotify|netflix|gmail|telegram)/i);
+
+  // Pesquisar no Google
+  const searchMatch = msg.match(/pesquis\w*\s+(?:no google\s+)?(?:por\s+|sobre\s+)?(.+?)(?:\s+no google|\s*$)/i)
+    || msg.match(/(?:busca|procura)\w*\s+(?:no google\s+)?(?:por\s+|sobre\s+)?(.+?)(?:\s+no google|\s*$)/i);
+  if (searchMatch && searchMatch[1] && searchMatch[1].length > 1) {
+    const query = searchMatch[1].trim();
+    actions.push({ action: 'send_device_command', params: { deviceId: '__first__', commandName: 'open_url', params: { url: `https://www.google.com/search?q=${encodeURIComponent(query)}` } } });
+    fallbackResponse = `Pesquisei "${query}" no Google pra voc\u00ea!`;
+  }
 
   // Abrir site - preferir dispositivo
   if (urlMatch && /abr|entre|acesse|naveg|vai|ir|site/i.test(msg)) {

@@ -83,7 +83,9 @@ export class OllamaClient {
   // Chat rápido (0.8b) - para conversa simples, saudações, perguntas
   // Retorna texto puro (0.8b não produz JSON confiável)
   async chatFast(messages: ChatMessage[]): Promise<string> {
-    const raw = await this.chatWithModel(this.fastModel, messages, this.buildSimplePrompt(), 20000, 256);
+    // Limitar a últimas 4 mensagens para manter resposta rápida
+    const trimmed = messages.slice(-4);
+    const raw = await this.chatWithModel(this.fastModel, trimmed, this.buildSimplePrompt(), 45000, 256);
     // Tentar extrair response de JSON se o modelo produziu
     try {
       const json = JSON.parse(raw.trim());
