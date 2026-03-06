@@ -1,0 +1,55 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android-agent/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+        working-directory: android-agent
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon
+        working-directory: android-agent
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: YChatClaw-Agent-APK
+          path: android-agent/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Deploy APK to server
+        if: ${{ secrets.SERVER_SSH_KEY != '' }}
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
+          SERVER_HOST: 167.86.84.197
+          SERVER_USER: user
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H $SERVER_HOST >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key $SERVER_USER@$SERVER_HOST "mkdir -p /home/user/YChatClaw/apk"
+          scp -i ~/.ssh/deploy_key android-agent/app/build/outputs/apk/debug/app-debug.apk $SERVER_USER@$SERVER_HOST:/home/user/YChatClaw/apk/app-debug.apk
+          echo "APK enviado para o servidor com sucesso!"
