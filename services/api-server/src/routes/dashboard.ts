@@ -1,10 +1,6 @@
 import express from 'express';
-import fs from 'fs';
-import path from 'path';
 
 const router = express.Router();
-
-const APK_PATH = '/app/apk/app-debug.apk';
 
 // Middleware de autenticação simples
 router.use('/', (req, res, next) => {
@@ -364,20 +360,57 @@ router.post('/web-execute-js', async (req, res) => {
   } catch (error) { res.json({ success: false, error: (error as Error).message }); }
 });
 
-// Rota para verificar se APK existe
-router.get('/check-apk', (req, res) => {
-  const exists = fs.existsSync(APK_PATH);
-  const size = exists ? fs.statSync(APK_PATH).size : 0;
-  const sizeKB = Math.round(size / 1024);
-  res.json({ exists, sizeKB, path: exists ? '/dashboard/download-apk' : null });
+// === Agent Management Proxy Routes ===
+router.get('/agents', async (req, res) => {
+  try {
+    const r = await fetch('http://localhost:3000/api/agents');
+    res.json(await r.json());
+  } catch (error) { res.json({ agents: [] }); }
 });
 
-// Rota para baixar o APK
-router.get('/download-apk', (req, res) => {
-  if (!fs.existsSync(APK_PATH)) {
-    return res.status(404).json({ error: 'APK nao encontrado. Compile via Android Studio e envie para o servidor.' });
+router.post('/agents', async (req, res) => {
+  try {
+    const r = await fetch('http://localhost:3000/api/agents', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    res.json(await r.json());
+  } catch (error) { res.json({ error: (error as Error).message }); }
+});
+
+router.put('/agents/:id', async (req, res) => {
+  try {
+    const r = await fetch(`http://localhost:3000/api/agents/${req.params.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    res.json(await r.json());
+  } catch (error) { res.json({ error: (error as Error).message }); }
+});
+
+router.delete('/agents/:id', async (req, res) => {
+  try {
+    const r = await fetch(`http://localhost:3000/api/agents/${req.params.id}`, {
+      method: 'DELETE',
+    });
+    res.json(await r.json());
+  } catch (error) { res.json({ error: (error as Error).message }); }
+});
+
+// Conectar WhatsApp para um agente específico
+router.post('/agents/:id/connect-whatsapp', async (req, res) => {
+  try {
+    // Gerar QR para este agente
+    const response = await fetch('http://whatsapp-gateway:3003/generate-qr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId: req.params.id }),
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.json({ error: (error as Error).message });
   }
-  res.download(APK_PATH, 'YChatClaw-Agent.apk');
 });
 
 function getDashboardHTML(): string {
@@ -588,38 +621,7 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#0f0f23;
     </div>
   </div>
 
-  <!-- Row 4: APK Download -->
-  <div class="card" style="margin-bottom:20px">
-    <div class="card-header"><h3>&#128640; Android Agent — Download APK</h3><span class="badge badge-yellow" id="apk-badge">Verificando...</span></div>
-    <div class="card-body">
-      <div id="apk-section">
-        <div style="display:flex;align-items:center;gap:20px;padding:10px 0">
-          <div style="font-size:48px">&#129302;</div>
-          <div style="flex:1">
-            <div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:6px">Agente Android — YChatClaw</div>
-            <div style="font-size:13px;color:#888;margin-bottom:12px">Instale o APK no celular para controlar dispositivos remotamente via AI, WhatsApp e Dashboard.</div>
-            <div id="apk-status-area">
-              <div style="color:#f59e0b;font-size:13px">&#9203; Verificando disponibilidade do APK...</div>
-            </div>
-          </div>
-        </div>
-        <div style="background:rgba(102,126,234,0.08);border:1px solid rgba(102,126,234,0.2);border-radius:8px;padding:14px;margin-top:10px">
-          <h4 style="font-size:13px;color:#ccc;margin-bottom:8px">&#128736; Como compilar o APK</h4>
-          <ol style="font-size:12px;color:#888;padding-left:18px;line-height:2">
-            <li>Abra o Android Studio e importe a pasta <code style="background:#0a0a1a;padding:2px 6px;border-radius:4px">android-agent/</code> do projeto</li>
-            <li>Clique em <strong style="color:#ccc">Build &gt; Build APK(s)</strong></li>
-            <li>Copie o APK gerado para o servidor:</li>
-          </ol>
-          <div style="background:#0a0a1a;border-radius:6px;padding:10px;margin-top:8px;font-family:monospace;font-size:11px;color:#10b981">
-            scp android-agent/app/build/outputs/apk/debug/app-debug.apk user@167.86.84.197:/home/user/YChatClaw/apk/app-debug.apk
-          </div>
-          <div style="font-size:12px;color:#888;margin-top:8px">Apos copiar, recarregue esta pagina e o botao de download aparecera.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Row 5: Device Control -->
+  <!-- Row 4: Device Control -->
   <div class="card" style="margin-bottom:20px">
     <div class="card-header"><h3>&#128241; Controle de Dispositivos</h3><span class="badge badge-blue" id="dev-badge">0 dispositivos</span></div>
     <div class="card-body">
@@ -644,6 +646,55 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#0f0f23;
           <button class="btn btn-success btn-sm" onclick="sendDeviceCmd()">Enviar Comando</button>
         </div>
         <div id="dev-result" style="display:none;margin-top:10px;background:#0a0a1a;border-radius:8px;padding:12px;font-size:12px;color:#999;max-height:150px;overflow-y:auto"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 5: Agent Management -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header"><h3>&#129302; Gerenciamento de Agentes</h3><div><span class="badge badge-blue" id="agent-badge">0 agentes</span> <button class="btn btn-success btn-sm" onclick="showAgentForm()">+ Novo Agente</button></div></div>
+    <div class="card-body">
+      <div id="agent-form-area" style="display:none;background:rgba(102,126,234,0.08);border:1px solid rgba(102,126,234,0.2);border-radius:8px;padding:16px;margin-bottom:16px">
+        <h4 style="font-size:14px;color:#ccc;margin-bottom:12px" id="agent-form-title">Novo Agente</h4>
+        <input type="hidden" id="agent-edit-id">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div>
+            <label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Nome do Agente</label>
+            <input type="text" id="agent-name" placeholder="Ex: Assistente Vendas" style="width:100%;background:#16213e;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#fff;font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Modelo AI</label>
+            <select id="agent-model" style="width:100%;background:#16213e;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#fff;font-size:13px">
+              <option value="qwen3.5:0.8b">Qwen 3.5 0.8B (Rapido)</option>
+              <option value="qwen3.5:4b">Qwen 3.5 4B (Inteligente)</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Descricao</label>
+          <input type="text" id="agent-desc" placeholder="Descricao curta do agente" style="width:100%;background:#16213e;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#fff;font-size:13px">
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Prompt do Sistema (personalidade e instrucoes)</label>
+          <textarea id="agent-prompt" rows="4" placeholder="Ex: Voce eh um assistente de vendas amigavel. Responda sempre em portugues..." style="width:100%;background:#16213e;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#fff;font-size:13px;resize:vertical;font-family:inherit"></textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div>
+            <label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Numero WhatsApp (conectar depois)</label>
+            <input type="text" id="agent-wa-number" placeholder="Ex: 5511999998888" style="width:100%;background:#16213e;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#fff;font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Numeros Permitidos (um por linha)</label>
+            <textarea id="agent-allowed" rows="2" placeholder="5511999998888&#10;5511977776666" style="width:100%;background:#16213e;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#fff;font-size:13px;resize:vertical;font-family:inherit"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-sm" style="background:#333;color:#ccc" onclick="hideAgentForm()">Cancelar</button>
+          <button class="btn btn-success btn-sm" onclick="saveAgent()">Salvar Agente</button>
+        </div>
+      </div>
+      <div id="agent-list">
+        <div style="text-align:center;color:#555;padding:20px">Carregando agentes...</div>
       </div>
     </div>
   </div>
@@ -677,7 +728,7 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#0f0f23;
     </div>
   </div>
 
-  <!-- Row 7: Logs -->
+  <!-- Row 5: Logs -->
   <div class="card" style="margin-bottom:20px">
     <div class="card-header"><h3>Logs do Sistema</h3><button class="btn btn-sm btn-primary" onclick="loadLogs()">Atualizar</button></div>
     <div class="card-body">
@@ -716,28 +767,7 @@ let logLines = [];
 
 // === LOAD ALL DATA ===
 async function refreshAll() {
-  await Promise.allSettled([loadStats(), loadServices(), checkWaStatus(), loadAiStatus(), loadWaMessages(), checkApkStatus(), loadDevices(), loadWebSessions(), loadLogs()]);
-}
-
-// === APK CHECK ===
-async function checkApkStatus() {
-  try {
-    const r = await fetch('/dashboard/check-apk', {headers: hdrs});
-    const d = await r.json();
-    const badge = document.getElementById('apk-badge');
-    const area = document.getElementById('apk-status-area');
-    if (d.exists) {
-      badge.textContent = 'Disponivel (' + d.sizeKB + ' KB)';
-      badge.className = 'badge badge-green';
-      area.innerHTML = '<a href="/dashboard/download-apk" class="btn btn-success" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none">&#11015; Baixar APK (YChatClaw-Agent.apk)</a><span style="font-size:12px;color:#888;margin-left:12px">' + d.sizeKB + ' KB</span>';
-    } else {
-      badge.textContent = 'Nao compilado';
-      badge.className = 'badge badge-yellow';
-      area.innerHTML = '<span style="color:#f59e0b;font-size:13px">&#9888; APK nao encontrado no servidor. Siga as instrucoes abaixo para compilar e enviar.</span>';
-    }
-  } catch(e) {
-    document.getElementById('apk-badge').textContent = 'Erro';
-  }
+  await Promise.allSettled([loadStats(), loadServices(), checkWaStatus(), loadAiStatus(), loadWaMessages(), loadDevices(), loadAgents(), loadWebSessions(), loadLogs()]);
 }
 
 // === STATS ===
@@ -1152,6 +1182,125 @@ async function loadWebSessions() {
       return '<div class="web-session-item"' + active + '><span class="sid">' + s.id.substring(0,8) + '...</span><span class="surl">' + (s.url||'blank') + '</span><span class="badge badge-blue">' + (s.title||'').substring(0,30) + '</span><button class="btn btn-sm btn-primary" onclick="webSessionId=\\'' + s.id + '\\';addLog(\\'Sessao selecionada: ' + s.id.substring(0,8) + '\\',\\'ok\\');loadWebSessions()">Selecionar</button></div>';
     }).join('');
   } catch(e) { console.error('Web sessions error:', e); }
+}
+
+// === AGENTS ===
+let agentsList = [];
+
+async function loadAgents() {
+  try {
+    const r = await fetch('/dashboard/agents', {headers: hdrs});
+    const d = await r.json();
+    agentsList = d.agents || [];
+    document.getElementById('agent-badge').textContent = agentsList.length + ' agentes';
+    const el = document.getElementById('agent-list');
+    if (agentsList.length === 0) {
+      el.innerHTML = '<div style="text-align:center;color:#555;padding:20px">Nenhum agente criado. Clique em "+ Novo Agente" para comecar.</div>';
+      return;
+    }
+    el.innerHTML = agentsList.map(function(a) {
+      const statusColor = a.isActive ? '#10b981' : '#ef4444';
+      const statusText = a.isActive ? 'Ativo' : 'Inativo';
+      const waColor = a.whatsappStatus === 'connected' ? '#10b981' : '#ef4444';
+      const waText = a.whatsappStatus === 'connected' ? 'Conectado' : 'Desconectado';
+      const allowed = (Array.isArray(a.allowedNumbers) ? a.allowedNumbers : []);
+      const allowedText = allowed.length > 0 ? allowed.length + ' numero(s)' : 'Todos';
+      return '<div style="background:rgba(102,126,234,0.05);border:1px solid rgba(102,126,234,0.15);border-radius:8px;padding:14px;margin-bottom:8px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+          '<div style="display:flex;align-items:center;gap:10px">' +
+            '<div style="width:10px;height:10px;border-radius:50%;background:' + statusColor + '"></div>' +
+            '<span style="font-weight:600;color:#fff;font-size:14px">' + a.name + '</span>' +
+            '<span class="badge badge-blue">' + a.model + '</span>' +
+          '</div>' +
+          '<div style="display:flex;gap:6px">' +
+            '<button class="btn btn-primary btn-sm" onclick="editAgent(\\'' + a.id + '\\')">Editar</button>' +
+            '<button class="btn btn-sm" style="background:' + (a.isActive?'#ef4444':'#10b981') + ';color:#fff" onclick="toggleAgent(\\'' + a.id + '\\',' + !a.isActive + ')">' + (a.isActive?'Desativar':'Ativar') + '</button>' +
+            '<button class="btn btn-danger btn-sm" onclick="deleteAgent(\\'' + a.id + '\\')">Excluir</button>' +
+          '</div>' +
+        '</div>' +
+        '<div style="font-size:12px;color:#888;margin-bottom:6px">' + (a.description || 'Sem descricao') + '</div>' +
+        '<div style="display:flex;gap:16px;font-size:11px;color:#666">' +
+          '<span>WhatsApp: <span style="color:' + waColor + '">' + waText + '</span>' + (a.whatsappNumber ? ' (' + a.whatsappNumber + ')' : '') + '</span>' +
+          '<span>Permitidos: ' + allowedText + '</span>' +
+          '<span>Status: <span style="color:' + statusColor + '">' + statusText + '</span></span>' +
+        '</div>' +
+        (a.systemPrompt ? '<div style="margin-top:8px;padding:8px;background:#0a0a1a;border-radius:6px;font-size:11px;color:#777;max-height:60px;overflow:hidden">' + a.systemPrompt.substring(0,200) + (a.systemPrompt.length > 200 ? '...' : '') + '</div>' : '') +
+      '</div>';
+    }).join('');
+    addLog('Agentes carregados: ' + agentsList.length, 'ok');
+  } catch(e) { console.error('Agents error:', e); }
+}
+
+function showAgentForm() {
+  document.getElementById('agent-form-area').style.display = 'block';
+  document.getElementById('agent-form-title').textContent = 'Novo Agente';
+  document.getElementById('agent-edit-id').value = '';
+  document.getElementById('agent-name').value = '';
+  document.getElementById('agent-desc').value = '';
+  document.getElementById('agent-prompt').value = '';
+  document.getElementById('agent-model').value = 'qwen3.5:0.8b';
+  document.getElementById('agent-wa-number').value = '';
+  document.getElementById('agent-allowed').value = '';
+}
+
+function hideAgentForm() {
+  document.getElementById('agent-form-area').style.display = 'none';
+}
+
+function editAgent(id) {
+  const a = agentsList.find(function(x) { return x.id === id; });
+  if (!a) return;
+  document.getElementById('agent-form-area').style.display = 'block';
+  document.getElementById('agent-form-title').textContent = 'Editar Agente: ' + a.name;
+  document.getElementById('agent-edit-id').value = a.id;
+  document.getElementById('agent-name').value = a.name;
+  document.getElementById('agent-desc').value = a.description || '';
+  document.getElementById('agent-prompt').value = a.systemPrompt || '';
+  document.getElementById('agent-model').value = a.model || 'qwen3.5:0.8b';
+  document.getElementById('agent-wa-number').value = a.whatsappNumber || '';
+  const allowed = Array.isArray(a.allowedNumbers) ? a.allowedNumbers : [];
+  document.getElementById('agent-allowed').value = allowed.join('\\n');
+}
+
+async function saveAgent() {
+  const id = document.getElementById('agent-edit-id').value;
+  const name = document.getElementById('agent-name').value.trim();
+  if (!name) { alert('Nome obrigatorio'); return; }
+  const data = {
+    name: name,
+    description: document.getElementById('agent-desc').value.trim() || null,
+    systemPrompt: document.getElementById('agent-prompt').value.trim(),
+    model: document.getElementById('agent-model').value,
+    whatsappNumber: document.getElementById('agent-wa-number').value.trim() || null,
+    allowedNumbers: document.getElementById('agent-allowed').value.trim().split('\\n').map(function(n){return n.trim()}).filter(Boolean),
+  };
+  try {
+    const url = id ? '/dashboard/agents/' + id : '/dashboard/agents';
+    const method = id ? 'PUT' : 'POST';
+    const r = await fetch(url, {method: method, headers: hdrs, body: JSON.stringify(data)});
+    const d = await r.json();
+    if (d.error) { addLog('Erro: ' + (d.error || d.details), 'err'); return; }
+    addLog('Agente ' + (id ? 'atualizado' : 'criado') + ': ' + name, 'ok');
+    hideAgentForm();
+    loadAgents();
+  } catch(e) { addLog('Erro ao salvar agente: ' + e.message, 'err'); }
+}
+
+async function toggleAgent(id, active) {
+  try {
+    await fetch('/dashboard/agents/' + id, {method: 'PUT', headers: hdrs, body: JSON.stringify({isActive: active})});
+    loadAgents();
+    addLog('Agente ' + (active ? 'ativado' : 'desativado'), 'ok');
+  } catch(e) { addLog('Erro: ' + e.message, 'err'); }
+}
+
+async function deleteAgent(id) {
+  if (!confirm('Tem certeza que deseja excluir este agente?')) return;
+  try {
+    await fetch('/dashboard/agents/' + id, {method: 'DELETE', headers: hdrs});
+    loadAgents();
+    addLog('Agente excluido', 'ok');
+  } catch(e) { addLog('Erro: ' + e.message, 'err'); }
 }
 
 // === LOGS ===

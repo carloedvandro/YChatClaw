@@ -120,6 +120,33 @@ async function initWhatsAppClient(): Promise<void> {
           console.log(`⏭️ Ignorando mensagem automatizada de ${from}`);
           return;
         }
+
+        // Verificar whitelist de números por agente
+        const senderNumber = from.replace('@c.us', '');
+        let matchedAgent: any = null;
+        try {
+          const agentsRes = await fetch('http://localhost:3000/api/agents');
+          const agentsData = await agentsRes.json() as any;
+          const agents = (agentsData.agents || []).filter((a: any) => a.isActive);
+          
+          if (agents.length > 0) {
+            // Procurar agente que tem este número na whitelist
+            matchedAgent = agents.find((a: any) => {
+              const allowed = Array.isArray(a.allowedNumbers) ? a.allowedNumbers : [];
+              if (allowed.length === 0) return true; // sem whitelist = aceita todos
+              return allowed.some((n: string) => senderNumber.includes(n) || n.includes(senderNumber));
+            });
+            
+            if (!matchedAgent) {
+              console.log(`🚫 Número ${senderNumber} não está na whitelist de nenhum agente`);
+              return;
+            }
+            console.log(`✅ Número ${senderNumber} permitido no agente: ${matchedAgent.name}`);
+          }
+        } catch (agentErr) {
+          // Se não conseguir verificar agentes, permitir (fallback)
+          console.log('⚠️ Não foi possível verificar agentes, permitindo mensagem');
+        }
         
         // Encaminhar para AI Service
         try {
@@ -128,9 +155,11 @@ async function initWhatsAppClient(): Promise<void> {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               message: body,
-              userId: from.replace('@c.us', ''),
+              userId: senderNumber,
               channel: 'whatsapp',
               channelId: from,
+              agentId: matchedAgent?.id || null,
+              agentPrompt: matchedAgent?.systemPrompt || null,
             }),
           });
           const aiData = await aiResponse.json() as any;

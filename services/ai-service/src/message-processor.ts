@@ -7,6 +7,8 @@ interface ProcessMessageOptions {
   channel: string;
   channelId?: string;
   sessionId?: string;
+  agentId?: string;
+  agentPrompt?: string;
   prisma: any;
   redis: any;
   ollamaClient: OllamaClient;
@@ -48,7 +50,7 @@ function withOllamaLock<T>(fn: () => Promise<T>, timeoutMs: number = 120000): Pr
 }
 
 export async function processMessage(options: ProcessMessageOptions): Promise<any> {
-  const { message, userId, channel, channelId, sessionId, prisma, redis, ollamaClient, toolRegistry } = options;
+  const { message, userId, channel, channelId, sessionId, agentId, agentPrompt, prisma, redis, ollamaClient, toolRegistry } = options;
 
   // Buscar ou criar usuário
   let user = await prisma.user.findFirst({
@@ -119,7 +121,7 @@ export async function processMessage(options: ProcessMessageOptions): Promise<an
       try {
         // Usar sempre o modelo rápido (0.8b) - 4b é muito lento em CPU (~48s)
         console.log(`⚡ Roteando para modelo FAST (0.8b)...`);
-        const fastResponse = await withOllamaLock(() => ollamaClient.chatFast(history));
+        const fastResponse = await withOllamaLock(() => ollamaClient.chatFast(history, agentPrompt || undefined));
         console.log(`⚡ Fast response: ${fastResponse.substring(0, 200)}`);
         friendlyResponse = fastResponse;
       } catch (aiError) {
@@ -348,9 +350,14 @@ function detectIntent(message: string, userId: string): { actions: ParsedAction[
     fallbackResponse = `Pesquisei "${query}" no Google pra voc\u00ea!`;
   }
 
-  // Abrir site - preferir dispositivo
+  // Detectar se o usuário quer screenshot junto com o site
+  const wantsPrint = /print|screenshot|screen shot|captur|tira.*tela|foto.*site|tir.*print|mostr.*imagem|traz.*imagem|me mostr|me envi/i.test(msg);
+
+  // Abrir site - preferir dispositivo (mas também abrir no browser do servidor se pedir print)
+  let detectedUrl = '';
   if (urlMatch && /abr|entre|acesse|naveg|vai|ir|site/i.test(msg)) {
-    actions.push({ action: 'send_device_command', params: { deviceId: '__first__', commandName: 'open_url', params: { url: urlMatch[0] } } });
+    detectedUrl = urlMatch[0];
+    actions.push({ action: 'send_device_command', params: { deviceId: '__first__', commandName: 'open_url', params: { url: detectedUrl } } });
     fallbackResponse = 'Pronto! Abri o site no seu celular.';
   } else if (siteMatch && !urlMatch) {
     const siteUrls: Record<string, string> = {
@@ -366,9 +373,17 @@ function detectIntent(message: string, userId: string): { actions: ParsedAction[
       whatsapp: 'https://web.whatsapp.com',
     };
     const siteName = siteMatch[1].toLowerCase();
-    const siteUrl = siteUrls[siteName] || `https://www.${siteName}.com`;
-    actions.push({ action: 'send_device_command', params: { deviceId: '__first__', commandName: 'open_url', params: { url: siteUrl } } });
+    detectedUrl = siteUrls[siteName] || `https://www.${siteName}.com`;
+    actions.push({ action: 'send_device_command', params: { deviceId: '__first__', commandName: 'open_url', params: { url: detectedUrl } } });
     fallbackResponse = `Pronto! Abri o ${siteMatch[1]} no seu celular.`;
+  } else if (urlMatch) {
+    // URL detectada mas sem verbo de "abrir" - pode ser só pra screenshot
+    detectedUrl = urlMatch[0];
+  }
+
+  // Se pediu print E temos URL, abrir também no browser do servidor para screenshot
+  if (wantsPrint && detectedUrl) {
+    actions.push({ action: 'web_open_browser', params: { url: detectedUrl } });
   }
 
   // Scroll / rolar página

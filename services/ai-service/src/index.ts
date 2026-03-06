@@ -30,7 +30,7 @@ app.use(express.json({ limit: '10mb' }));
 // Endpoint principal para processar mensagens
 app.post('/process', async (req, res) => {
   try {
-    const { message, userId, channel, channelId, sessionId } = req.body;
+    const { message, userId, channel, channelId, sessionId, agentId, agentPrompt } = req.body;
 
     if (!message || !userId || !channel) {
       return res.status(400).json({
@@ -44,6 +44,8 @@ app.post('/process', async (req, res) => {
       channel,
       channelId,
       sessionId,
+      agentId,
+      agentPrompt,
       prisma,
       redis,
       ollamaClient,

@@ -199,6 +199,23 @@ enum CommandStatus {
   CANCELLED
 }
 
+model Agent {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  systemPrompt    String   @default("")
+  model           String   @default("qwen3.5:0.8b")
+  whatsappNumber  String?  @unique
+  whatsappStatus  String   @default("disconnected")
+  allowedNumbers  Json     @default("[]")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([whatsappNumber])
+}
+
 enum MediaType {
   IMAGE
   VIDEO

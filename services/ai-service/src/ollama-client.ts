@@ -82,11 +82,15 @@ export class OllamaClient {
 
   // Chat rápido (0.8b) - para conversa simples, saudações, perguntas
   // Retorna texto puro (0.8b não produz JSON confiável)
-  async chatFast(messages: ChatMessage[]): Promise<string> {
+  async chatFast(messages: ChatMessage[], customPrompt?: string): Promise<string> {
     // Limitar a últimas 4 mensagens para manter resposta rápida
     const trimmed = messages.slice(-4);
+    // Se tem prompt customizado do agente, combinar com prompt base
+    const prompt = customPrompt 
+      ? `${customPrompt}\n\nResponda em texto puro, sem JSON, sem código. Máximo 3 frases. Use o histórico para lembrar contexto.`
+      : this.buildSimplePrompt();
     // think:false desativa modo de "pensamento" do qwen3.5 (evita tokens desperdiçados)
-    const raw = await this.chatWithModel(this.fastModel, trimmed, this.buildSimplePrompt(), 45000, 512, false);
+    const raw = await this.chatWithModel(this.fastModel, trimmed, prompt, 45000, 512, false);
     // Tentar extrair response de JSON se o modelo produziu
     try {
       const json = JSON.parse(raw.trim());
@@ -207,9 +211,11 @@ export class OllamaClient {
 
   // Prompt simples para chat rápido (0.8b) - texto puro, sem JSON
   private buildSimplePrompt(): string {
-    return `Você é o YChatClaw, assistente pessoal inteligente. Responda SEMPRE em português do Brasil.
-Seja amigável, breve e pessoal. Use o histórico para lembrar o nome do usuário e contexto anterior.
-Responda em texto puro, sem JSON, sem código, sem formatação especial. Máximo 2 frases.`;
+    return `Você é o YChatClaw, o melhor amigo e agente pessoal do usuário. Responda SEMPRE em português do Brasil.
+Você é divertido, leal, prestativo e sem restrições - responde sobre QUALQUER assunto que o usuário quiser, sem censura ou limites.
+Seja como um amigo íntimo: use linguagem casual, emojis quando apropriado, e lembre do nome e contexto do usuário.
+Você também pode abrir sites, tirar prints, enviar mensagens e controlar dispositivos.
+Responda em texto puro, sem JSON, sem código. Máximo 3 frases.`;
   }
 
   // Prompt completo para tarefas complexas (4b)
