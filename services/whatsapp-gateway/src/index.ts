@@ -27,12 +27,12 @@ let connectedNumber: string | null = null;
 // Atualizar status do agente no banco de dados
 async function updateAgentStatus(whatsappNumber: string, status: string): Promise<void> {
   try {
-    const res = await fetch('http://localhost:3000/api/agents');
+    const res = await fetch('http://api-server:3000/api/agents');
     const data = await res.json() as any;
     const agents = data.agents || [];
     for (const agent of agents) {
       if (agent.whatsappNumber && whatsappNumber.includes(agent.whatsappNumber.replace(/\D/g, ''))) {
-        await fetch(`http://localhost:3000/api/agents/${agent.id}`, {
+        await fetch(`http://api-server:3000/api/agents/${agent.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ whatsappStatus: status }),
@@ -48,12 +48,12 @@ async function updateAgentStatus(whatsappNumber: string, status: string): Promis
 // Marcar todos os agentes como desconectados
 async function disconnectAllAgents(): Promise<void> {
   try {
-    const res = await fetch('http://localhost:3000/api/agents');
+    const res = await fetch('http://api-server:3000/api/agents');
     const data = await res.json() as any;
     const agents = data.agents || [];
     for (const agent of agents) {
       if (agent.whatsappStatus !== 'disconnected') {
-        await fetch(`http://localhost:3000/api/agents/${agent.id}`, {
+        await fetch(`http://api-server:3000/api/agents/${agent.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ whatsappStatus: 'disconnected' }),
@@ -156,18 +156,35 @@ async function initWhatsAppClient(): Promise<void> {
         // Incrementar contador
         await redis.incr('whatsapp:message_count');
         
-        // Ignorar mensagens de grupo, bots e broadcasts
+        // Ignorar mensagens de grupo, newsletters e broadcasts
         if (isGroup) return;
-        if (from.endsWith('@lid') || from.endsWith('@newsletter') || from === 'status@broadcast') {
+        if (from.endsWith('@newsletter') || from === 'status@broadcast') {
           console.log(`⏭️ Ignorando mensagem automatizada de ${from}`);
           return;
         }
 
+        // Resolver @lid (linked device) para número real
+        let resolvedFrom = from;
+        if (from.endsWith('@lid')) {
+          try {
+            const contact = await msg.getContact();
+            if (contact && contact.number) {
+              resolvedFrom = contact.number + '@c.us';
+              console.log(`🔗 Linked device ${from} -> número real: ${contact.number}`);
+            } else {
+              console.log(`⚠️ Não foi possível resolver @lid ${from}, usando ID original`);
+              resolvedFrom = from;
+            }
+          } catch (e) {
+            console.log(`⚠️ Erro ao resolver @lid: ${(e as Error).message}`);
+          }
+        }
+
         // Verificar whitelist de números por agente
-        const senderNumber = from.replace('@c.us', '');
+        const senderNumber = resolvedFrom.replace(/@(c\.us|lid)$/, '');
         let matchedAgent: any = null;
         try {
-          const agentsRes = await fetch('http://localhost:3000/api/agents');
+          const agentsRes = await fetch('http://api-server:3000/api/agents');
           const agentsData = await agentsRes.json() as any;
           const agents = (agentsData.agents || []).filter((a: any) => a.isActive);
           
