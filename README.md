@@ -302,7 +302,7 @@ O servidor também roda o [OpenClaw](https://github.com/openclaw/openclaw), um a
 | WebSocket | `ws://167.86.84.197:18789` |
 | Browser Control | `http://127.0.0.1:18791` (local) |
 
-**Autenticação**: modo `password` — senha: `openclaw123`
+**Autenticação**: modo `password` — senha: `openclaw`
 
 ### Configuração
 
